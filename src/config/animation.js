@@ -1,0 +1,48 @@
+// Animation parameters
+export const ANIMATION = {
+  // Walk cycle
+  WALK_CYCLE_SPEED: 8,
+  RUN_CYCLE_SPEED: 12,
+
+  // Stride
+  WALK_STRIDE_LENGTH: 1.2,
+  RUN_STRIDE_LENGTH: 2.0,
+  WALK_STRIDE_HEIGHT: 0.3,
+  RUN_STRIDE_HEIGHT: 0.5,
+
+  // IK
+  IK_BLEND_SPEED: 8.0,
+  FOOT_PLANT_TOLERANCE: 0.1,
+  PELVIS_DROP_MAX: 0.4,
+
+  // Leg dimensions
+  UPPER_LEG_LENGTH: 1.5,
+  LOWER_LEG_LENGTH: 1.5,
+
+  // Arm swing
+  ARM_SWING_WALK: 0.4,
+  ARM_SWING_RUN: 0.6,
+  ELBOW_BEND_BASE: 0.1,
+
+  // Torso
+  TORSO_LEAN_WALK: 0.08,
+  TORSO_LEAN_RUN: 0.2,
+  TORSO_LEAN_JUMP: -0.15,
+  TORSO_LEAN_FALL: 0.1,
+  TORSO_TWIST_AMOUNT: 0.05,
+
+  // Head
+  HEAD_BOB_AMOUNT: 0.03,
+
+  // Hip
+  HIP_SWAY_AMOUNT: 0.02,
+
+  // Breathing
+  BREATHE_SPEED: 2,
+  BREATHE_AMPLITUDE: 0.02,
+
+  // Landing
+  LANDING_IMPACT: 0.15
+};
+
+export default ANIMATION;
