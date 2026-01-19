@@ -150,6 +150,8 @@ export interface DebugConfig {
   SHOW_COM_MARKER: boolean;
   SHOW_PLUMB_LINE: boolean;
   SHOW_VELOCITY_ARROW: boolean;
+  SHOW_SUPPORT_POLYGON: boolean;
+  SHOW_COM_TRAIL: boolean;
   SHOW_SKELETON_JOINTS: boolean;
   SHOW_GROUND_CONTACT: boolean;
   // Marker sizes
@@ -292,3 +294,114 @@ export interface TelemetryStats {
   facing?: number | string;
   velocityY?: number | string;
 }
+
+// =============================================================================
+// Center of Mass Types
+// =============================================================================
+
+export interface SegmentMasses {
+  head: number;
+  torso: number;
+  leftUpperArm: number;
+  rightUpperArm: number;
+  leftLowerArm: number;
+  rightLowerArm: number;
+  leftHand: number;
+  rightHand: number;
+  leftUpperLeg: number;
+  rightUpperLeg: number;
+  leftLowerLeg: number;
+  rightLowerLeg: number;
+  leftFoot: number;
+  rightFoot: number;
+}
+
+export interface SegmentCoMPositions {
+  head: number;
+  torso: number;
+  upperArm: number;
+  lowerArm: number;
+  hand: number;
+  upperLeg: number;
+  lowerLeg: number;
+  foot: number;
+}
+
+export interface TrailConfig {
+  MAX_POINTS: number;
+  FADE_START: number;
+  LINE_WIDTH: number;
+  COLOR_START: number;
+  COLOR_END: number;
+}
+
+export interface StabilityConfig {
+  STABLE_MARGIN: number;
+  WARNING_MARGIN: number;
+  UNSTABLE_MARGIN: number;
+}
+
+export interface VelocityArrowConfig {
+  SCALE: number;
+  MIN_LENGTH: number;
+  MAX_LENGTH: number;
+  HEAD_LENGTH: number;
+  HEAD_WIDTH: number;
+}
+
+export interface SupportPolygonConfig {
+  FOOT_LENGTH: number;
+  FOOT_WIDTH: number;
+  LINE_WIDTH: number;
+  COLOR_STABLE: number;
+  COLOR_UNSTABLE: number;
+}
+
+export interface CoMConfig {
+  SEGMENT_MASSES: SegmentMasses;
+  SEGMENT_COM_POSITIONS: SegmentCoMPositions;
+  TRAIL: TrailConfig;
+  STABILITY: StabilityConfig;
+  VELOCITY_ARROW: VelocityArrowConfig;
+  SUPPORT_POLYGON: SupportPolygonConfig;
+}
+
+/**
+ * State of the center of mass system
+ */
+export interface CoMState {
+  position: Vector3Like;
+  velocity: Vector3Like;
+  groundProjection: Vector3Like;
+  isStable: boolean;
+  stabilityMargin: number;
+  stabilityLevel: 'stable' | 'warning' | 'unstable';
+}
+
+/**
+ * Extended telemetry including CoM data
+ */
+export interface CoMTelemetryStats {
+  comPosition: Vector3Like;
+  comVelocity: Vector3Like;
+  comSpeed: number;
+  stabilityMargin: number;
+  isStable: boolean;
+  segmentContributions: Partial<Record<keyof SegmentMasses, Vector3Like>>;
+}
+
+/**
+ * Pose preset for saving/loading character poses
+ */
+export interface PosePreset {
+  name: string;
+  description?: string;
+  jointAngles: Record<string, { x: number; y: number; z: number }>;
+  rootPosition?: Vector3Like;
+  timestamp?: number;
+}
+
+/**
+ * Bone world positions map
+ */
+export type BonePositions = Map<string, Vector3Like>;

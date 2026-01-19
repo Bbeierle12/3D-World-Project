@@ -7,7 +7,7 @@ import { Engine, SceneManager, InputManager } from '../core/index.js';
 import { TerrainHeightmap, TerrainMesh } from '../terrain/index.js';
 
 // Physics
-import { SimplePhysics } from '../physics/index.js';
+import { SimplePhysics, CenterOfMassSystem, SupportPolygonCalculator } from '../physics/index.js';
 
 // Character
 import {
@@ -23,10 +23,18 @@ import {
 import { FollowCamera } from '../camera/index.js';
 
 // Config
-import { CHARACTER, ANIMATION } from '../config/index.js';
+import { CHARACTER, ANIMATION, DEBUG } from '../config/index.js';
 
 // Dev Tools
 import { DevTools } from '../dev/index.js';
+
+// Debug Visualizers
+import {
+  CoMVisualizer,
+  SupportPolygonVisualizer,
+  TrajectoryTrail,
+  VelocityArrow
+} from '../debug/index.js';
 
 /**
  * Main 3D canvas component
@@ -79,6 +87,28 @@ export function Canvas3D() {
     // Debug visualization
     let debugEnabled = true;
     rig.setDebugVisible(debugEnabled, sceneManager.scene);
+
+    // Center of Mass systems
+    const comSystem = new CenterOfMassSystem();
+    const supportPolygonCalc = new SupportPolygonCalculator();
+
+    // CoM visualizers
+    const comVisualizer = new CoMVisualizer(tracker);
+    const supportPolygonVis = new SupportPolygonVisualizer(tracker);
+    const trajectoryTrail = new TrajectoryTrail(tracker);
+    const velocityArrow = new VelocityArrow(tracker);
+
+    // Add visualizers to scene
+    comVisualizer.addToScene(sceneManager.scene);
+    supportPolygonVis.addToScene(sceneManager.scene);
+    trajectoryTrail.addToScene(sceneManager.scene);
+    velocityArrow.addToScene(sceneManager.scene);
+
+    // Set initial visibility from config
+    comVisualizer.setVisible(DEBUG.SHOW_COM_MARKER || DEBUG.SHOW_PLUMB_LINE);
+    supportPolygonVis.setVisible(DEBUG.SHOW_SUPPORT_POLYGON);
+    trajectoryTrail.setVisible(DEBUG.SHOW_COM_TRAIL);
+    velocityArrow.setVisible(DEBUG.SHOW_VELOCITY_ARROW);
 
     // Camera
     const followCamera = new FollowCamera(sceneManager.camera);
@@ -202,12 +232,57 @@ export function Canvas3D() {
         // Sync rig to controller
         rig.syncToController(controller.position, controller.facing);
 
+        // ===== Center of Mass Update =====
+        // Update visualizer visibility based on debug config
+        comVisualizer.setVisible(DEBUG.SHOW_COM_MARKER || DEBUG.SHOW_PLUMB_LINE);
+        supportPolygonVis.setVisible(DEBUG.SHOW_SUPPORT_POLYGON);
+        trajectoryTrail.setVisible(DEBUG.SHOW_COM_TRAIL);
+        velocityArrow.setVisible(DEBUG.SHOW_VELOCITY_ARROW);
+
+        // Get bone positions from rig
+        const bonePositions = rig.getBoneWorldPositions();
+
+        // Calculate support polygon from foot positions
+        const leftFootPos = rig.getFootWorldPosition('left');
+        const rightFootPos = rig.getFootWorldPosition('right');
+        const footPhases = footIK.getFootPhases();
+
+        const supportPolygon = supportPolygonCalc.calculate(
+          {
+            position: leftFootPos,
+            isGrounded: footPhases.left === 'stance',
+            facing: controller.facing
+          },
+          {
+            position: rightFootPos,
+            isGrounded: footPhases.right === 'stance',
+            facing: controller.facing
+          }
+        );
+
+        // Update CoM system
+        const comState = comSystem.update(
+          bonePositions,
+          controller.groundHeight,
+          supportPolygon,
+          deltaTime
+        );
+
+        // Update visualizers
+        comVisualizer.update(comState);
+        supportPolygonVis.update(supportPolygon, comState.isStable);
+        velocityArrow.update(comState.position, comState.velocity);
+
+        // Add point to trajectory trail
+        if (DEBUG.SHOW_COM_TRAIL) {
+          trajectoryTrail.addPoint(comState.position);
+        }
+
         // Update camera
         followCamera.update(controller.position, deltaTime);
 
         // Update DevTools telemetry
         if (devTools) {
-          const footPhases = footIK.getFootPhases();
           devTools.updateTelemetry({
             speed: controller.getSpeed().toFixed(1),
             state: controller.getDisplayState(),
@@ -223,6 +298,9 @@ export function Canvas3D() {
             facing: (controller.facing * 180 / Math.PI).toFixed(0),
             velocityY: controller.velocity.y.toFixed(1)
           });
+
+          // Update CoM telemetry
+          devTools.updateCoMTelemetry(comState);
         }
       }
     };
@@ -246,6 +324,11 @@ export function Canvas3D() {
       engine.stop();
       input.detach();
       if (devTools) devTools.dispose();
+      // Remove CoM visualizers from scene
+      comVisualizer.removeFromScene();
+      supportPolygonVis.removeFromScene();
+      trajectoryTrail.removeFromScene();
+      velocityArrow.removeFromScene();
       sceneManager.dispose();
     };
   }, []);

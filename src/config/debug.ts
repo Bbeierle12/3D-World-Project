@@ -7,6 +7,8 @@ export const DEBUG: DebugConfig = {
   SHOW_COM_MARKER: false,
   SHOW_PLUMB_LINE: false,
   SHOW_VELOCITY_ARROW: false,
+  SHOW_SUPPORT_POLYGON: false,
+  SHOW_COM_TRAIL: false,
   SHOW_SKELETON_JOINTS: false,
   SHOW_GROUND_CONTACT: false,
 

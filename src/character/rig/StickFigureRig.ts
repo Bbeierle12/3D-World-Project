@@ -5,7 +5,7 @@ import { MovementMode, type MovementModeType, type FootPhaseType } from '../cont
 import { createCharacterMaterials, type CharacterMaterials } from './materials.js';
 import { SkeletonBuilder } from './SkeletonBuilder.js';
 import type { DisposalTracker } from '../../utils/disposal.js';
-import type { Vector3Like } from '../../types/index.js';
+import type { Vector3Like, BonePositions } from '../../types/index.js';
 import type { IKSolution } from '../animation/TwoBoneIK.js';
 import type { AnimationState } from '../animation/ProceduralAnimation.js';
 
@@ -392,6 +392,59 @@ export class StickFigureRig {
       y: charPos.y + this.hipHeight + pelvisOffset,
       z: charPos.z + offset * -sin
     };
+  }
+
+  /**
+   * Get world positions of all bones for CoM calculation
+   * Returns a Map of bone names to their world positions
+   */
+  getBoneWorldPositions(): BonePositions {
+    const positions: BonePositions = new Map();
+
+    // Helper to get world position of a mesh
+    const getWorldPos = (mesh: THREE.Mesh): Vector3Like => {
+      const worldPos = new THREE.Vector3();
+      mesh.getWorldPosition(worldPos);
+      return { x: worldPos.x, y: worldPos.y, z: worldPos.z };
+    };
+
+    // Head
+    positions.set('head', getWorldPos(this.bones.head));
+
+    // Torso (use center of torso bone)
+    positions.set('torso', getWorldPos(this.bones.torso));
+
+    // Arms - left
+    positions.set('leftUpperArm', getWorldPos(this.bones.leftUpperArm));
+    positions.set('leftLowerArm', getWorldPos(this.bones.leftLowerArm));
+    positions.set('leftHand', getWorldPos(this.bones.leftHand));
+
+    // Arms - right
+    positions.set('rightUpperArm', getWorldPos(this.bones.rightUpperArm));
+    positions.set('rightLowerArm', getWorldPos(this.bones.rightLowerArm));
+    positions.set('rightHand', getWorldPos(this.bones.rightHand));
+
+    // Legs - left
+    positions.set('leftUpperLeg', getWorldPos(this.bones.leftUpperLeg));
+    positions.set('leftLowerLeg', getWorldPos(this.bones.leftLowerLeg));
+    positions.set('leftFoot', getWorldPos(this.bones.leftFoot));
+
+    // Legs - right
+    positions.set('rightUpperLeg', getWorldPos(this.bones.rightUpperLeg));
+    positions.set('rightLowerLeg', getWorldPos(this.bones.rightLowerLeg));
+    positions.set('rightFoot', getWorldPos(this.bones.rightFoot));
+
+    return positions;
+  }
+
+  /**
+   * Get world position of a specific foot
+   */
+  getFootWorldPosition(side: 'left' | 'right'): Vector3Like {
+    const foot = side === 'left' ? this.bones.leftFoot : this.bones.rightFoot;
+    const worldPos = new THREE.Vector3();
+    foot.getWorldPosition(worldPos);
+    return { x: worldPos.x, y: worldPos.y, z: worldPos.z };
   }
 }
 

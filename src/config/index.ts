@@ -3,3 +3,4 @@ export { ANIMATION } from './animation.js';
 export { TERRAIN } from './terrain.js';
 export { CAMERA } from './camera.js';
 export { DEBUG } from './debug.js';
+export { COM } from './com.js';

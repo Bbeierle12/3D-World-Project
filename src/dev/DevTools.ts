@@ -5,7 +5,8 @@ import { CharacterPanel } from './panels/CharacterPanel.js';
 import { AnimationPanel } from './panels/AnimationPanel.js';
 import { EnvironmentPanel } from './panels/EnvironmentPanel.js';
 import { DebugPanel } from './panels/DebugPanel.js';
-import type { GameConfig, GameSystems, TelemetryStats } from '../types/index.js';
+import { PosePresetsPanel } from './panels/PosePresetsPanel.js';
+import type { GameConfig, GameSystems, TelemetryStats, CoMState } from '../types/index.js';
 
 interface Panels {
   telemetry?: TelemetryPanel;
@@ -13,6 +14,7 @@ interface Panels {
   animation?: AnimationPanel;
   environment?: EnvironmentPanel;
   debug?: DebugPanel;
+  posePresets?: PosePresetsPanel;
 }
 
 /**
@@ -93,6 +95,12 @@ export class DevTools {
       this.config,
       this.systems
     );
+
+    this.panels.posePresets = new PosePresetsPanel(
+      this.gui,
+      this.config,
+      this.systems
+    );
   }
 
   /**
@@ -101,6 +109,15 @@ export class DevTools {
   updateTelemetry(stats: TelemetryStats): void {
     if (this.panels.telemetry) {
       this.panels.telemetry.update(stats);
+    }
+  }
+
+  /**
+   * Update Center of Mass telemetry
+   */
+  updateCoMTelemetry(state: CoMState): void {
+    if (this.panels.telemetry) {
+      this.panels.telemetry.updateCoM(state);
     }
   }
 

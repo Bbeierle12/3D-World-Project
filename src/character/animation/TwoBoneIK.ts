@@ -55,8 +55,8 @@ export class TwoBoneIK {
     const cosKneeInterior = (a * a + b * b - c * c) / (2 * a * b);
     const kneeInteriorAngle = Math.acos(clamp(cosKneeInterior, -1, 1));
 
-    // Upper bone pitch
-    const upperAngle = angleToTarget + hipOffset;
+    // Upper bone pitch (knee-forward for human legs)
+    const upperAngle = angleToTarget - hipOffset;
 
     // Lower bone pitch (relative to upper)
     // Knee only bends backward (positive)

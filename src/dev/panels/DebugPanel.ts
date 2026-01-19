@@ -1,5 +1,6 @@
 import type { GUI } from 'lil-gui';
 import type { GameConfig, GameSystems } from '../../types/index.js';
+import { captureScreenshot } from '../../utils/index.js';
 
 /**
  * Debug visualization toggles panel
@@ -41,6 +42,12 @@ export class DebugPanel {
     vis.add(debug, 'SHOW_VELOCITY_ARROW')
       .name('Velocity Arrow');
 
+    vis.add(debug, 'SHOW_SUPPORT_POLYGON')
+      .name('Support Polygon');
+
+    vis.add(debug, 'SHOW_COM_TRAIL')
+      .name('CoM Trail');
+
     vis.add(debug, 'SHOW_SKELETON_JOINTS')
       .name('Skeleton Joints');
 
@@ -52,6 +59,19 @@ export class DebugPanel {
 
   private setupActions(): void {
     const actions = this.folder.addFolder('Actions');
+
+    actions.add({
+      screenshot: () => {
+        if (this.systems.sceneManager) {
+          const sm = this.systems.sceneManager;
+          captureScreenshot(sm.renderer, sm.scene, sm.camera, {
+            filename: `stick-figure-${Date.now()}`
+          });
+        } else {
+          console.warn('Screenshot requires sceneManager in systems');
+        }
+      }
+    }, 'screenshot').name('Screenshot');
 
     actions.add({
       resetPosition: () => {
