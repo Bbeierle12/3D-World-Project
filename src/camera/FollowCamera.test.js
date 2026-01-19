@@ -12,9 +12,18 @@ describe('camera/FollowCamera', () => {
     const follow = new FollowCamera(camera)
     follow.update({ x: 10, y: 2, z: -5 }, 0.016)
 
-    const targetX = 10 + CAMERA.OFFSET_X
-    const targetY = 2 + CAMERA.OFFSET_Y
-    const targetZ = -5 + CAMERA.OFFSET_Z
+    const flatDistance = Math.hypot(CAMERA.OFFSET_X, CAMERA.OFFSET_Z)
+    const distance = Math.hypot(flatDistance, CAMERA.OFFSET_Y)
+    const yaw = Math.atan2(CAMERA.OFFSET_X, CAMERA.OFFSET_Z)
+    const pitch = Math.atan2(CAMERA.OFFSET_Y, Math.max(0.0001, flatDistance))
+
+    const offsetX = distance * Math.cos(pitch) * Math.sin(yaw)
+    const offsetY = distance * Math.sin(pitch)
+    const offsetZ = distance * Math.cos(pitch) * Math.cos(yaw)
+
+    const targetX = 10 + offsetX
+    const targetY = 2 + offsetY
+    const targetZ = -5 + offsetZ
 
     expect(camera.position.x).toBeCloseTo(targetX * CAMERA.POSITION_LERP, 5)
     expect(camera.position.y).toBeCloseTo(targetY * CAMERA.POSITION_LERP, 5)

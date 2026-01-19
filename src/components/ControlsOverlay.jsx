@@ -12,6 +12,16 @@ export function ControlsOverlay() {
         <div>Shift - Run</div>
         <div>Space - Jump</div>
         <div>V - Toggle IK debug</div>
+        <div>H - Toggle Debug HUD</div>
+        <div>P - Screenshot</div>
+        <div>O - Lock Pose</div>
+        <div>R - Reset Camera</div>
+        <div>L - Reset Location</div>
+        <div>T - Toggle Telemetry</div>
+        <div>Mouse Drag - Orbit Camera</div>
+        <div>Shift + Drag / Middle Mouse - Pan</div>
+        <div>Mouse Wheel - Zoom</div>
+        <div>Buttons - Reset Location / Reset Camera / Screenshot</div>
       </div>
     </div>
   );

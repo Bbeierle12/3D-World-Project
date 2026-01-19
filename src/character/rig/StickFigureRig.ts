@@ -446,6 +446,35 @@ export class StickFigureRig {
     foot.getWorldPosition(worldPos);
     return { x: worldPos.x, y: worldPos.y, z: worldPos.z };
   }
+
+  /**
+   * Apply joint rotations from a pose preset
+   */
+  applyPose(jointAngles: Record<string, Vector3Like>): void {
+    const pivots = this.pivots as Record<string, THREE.Group>;
+    for (const [jointName, angles] of Object.entries(jointAngles)) {
+      const pivot = pivots[jointName];
+      if (pivot) {
+        pivot.rotation.set(angles.x, angles.y, angles.z);
+      }
+    }
+  }
+
+  /**
+   * Capture current joint rotations for pose saving
+   */
+  getPose(): Record<string, Vector3Like> {
+    const pivots = this.pivots as Record<string, THREE.Group>;
+    const pose: Record<string, Vector3Like> = {};
+    for (const [jointName, pivot] of Object.entries(pivots)) {
+      pose[jointName] = {
+        x: pivot.rotation.x,
+        y: pivot.rotation.y,
+        z: pivot.rotation.z
+      };
+    }
+    return pose;
+  }
 }
 
 export default StickFigureRig;

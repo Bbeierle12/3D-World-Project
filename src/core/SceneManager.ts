@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { CAMERA } from '../config/index.js';
+import { WebGPURenderer } from 'three/webgpu';
+import { CAMERA, RENDER } from '../config/index.js';
 import { DisposalTracker } from '../utils/index.js';
 
 /**
@@ -14,7 +15,20 @@ export class SceneManager {
 
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  renderer: THREE.WebGLRenderer;
+  rendererBackend: 'webgpu' | 'webgl';
+  webgpuSupported: boolean;
+  fallbackUsed: boolean;
+  renderer: {
+    domElement: HTMLCanvasElement;
+    shadowMap: { enabled: boolean; type: number };
+    getPixelRatio?: () => number;
+    init?: () => Promise<void>;
+    setSize: (width: number, height: number) => void;
+    setPixelRatio: (ratio: number) => void;
+    render: (scene: THREE.Scene, camera: THREE.PerspectiveCamera) => void;
+    dispose: () => void;
+  };
+  initPromise: Promise<void> | null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -25,7 +39,11 @@ export class SceneManager {
 
     this.scene = this.createScene();
     this.camera = this.createCamera();
+    this.rendererBackend = 'webgpu';
+    this.webgpuSupported = false;
+    this.fallbackUsed = false;
     this.renderer = this.createRenderer();
+    this.initPromise = null;
 
     this.setupLights();
 
@@ -68,12 +86,46 @@ export class SceneManager {
     return camera;
   }
 
-  createRenderer(): THREE.WebGLRenderer {
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+  createRenderer(): {
+    domElement: HTMLCanvasElement;
+    shadowMap: { enabled: boolean; type: number };
+    init?: () => Promise<void>;
+    setSize: (width: number, height: number) => void;
+    setPixelRatio: (ratio: number) => void;
+    render: (scene: THREE.Scene, camera: THREE.PerspectiveCamera) => void;
+    dispose: () => void;
+  } {
+    const supportsWebGPU = SceneManager.supportsWebGPU();
+    this.webgpuSupported = supportsWebGPU;
+
+    const preferWebGPU = RENDER.PREFERRED_BACKEND === 'webgpu';
+    const useWebGPU = preferWebGPU && supportsWebGPU;
+    this.rendererBackend = useWebGPU ? 'webgpu' : 'webgl';
+    this.fallbackUsed = preferWebGPU && !useWebGPU;
+
+    let renderer: {
+      domElement: HTMLCanvasElement;
+      shadowMap: { enabled: boolean; type: number };
+      getPixelRatio?: () => number;
+      init?: () => Promise<void>;
+      setSize: (width: number, height: number) => void;
+      setPixelRatio: (ratio: number) => void;
+      render: (scene: THREE.Scene, camera: THREE.PerspectiveCamera) => void;
+      dispose: () => void;
+    };
+
+    if (useWebGPU) {
+      renderer = new WebGPURenderer({ antialias: RENDER.ANTIALIAS });
+    } else if (RENDER.ALLOW_WEBGL_FALLBACK) {
+      renderer = new THREE.WebGLRenderer({ antialias: RENDER.ANTIALIAS });
+    } else {
+      throw new Error('WebGPU is not supported and WebGL fallback is disabled.');
+    }
+
     const { width, height } = this.getContainerSize();
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.PIXEL_RATIO_MAX));
+    renderer.shadowMap.enabled = RENDER.SHADOWS_ENABLED;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     return renderer;
   }
@@ -139,6 +191,17 @@ export class SceneManager {
   }
 
   /**
+   * Initialize renderer (required for WebGPU backend)
+   */
+  async init(): Promise<void> {
+    if (!this.renderer.init) return;
+    if (!this.initPromise) {
+      this.initPromise = this.renderer.init();
+    }
+    await this.initPromise;
+  }
+
+  /**
    * Dispose all resources
    */
   dispose(): void {
@@ -161,6 +224,24 @@ export class SceneManager {
    */
   getTracker(): DisposalTracker {
     return this.tracker;
+  }
+
+  getRendererInfo(): { backend: 'webgpu' | 'webgl'; supportsWebGPU: boolean; fallbackUsed: boolean } {
+    return {
+      backend: this.rendererBackend,
+      supportsWebGPU: this.webgpuSupported,
+      fallbackUsed: this.fallbackUsed
+    };
+  }
+
+  static supportsWebGPU(): boolean {
+    if (typeof WebGPURenderer !== 'undefined' && typeof WebGPURenderer.isAvailable === 'function') {
+      return WebGPURenderer.isAvailable();
+    }
+    if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+      return Boolean((navigator as { gpu?: unknown }).gpu);
+    }
+    return false;
   }
 }
 

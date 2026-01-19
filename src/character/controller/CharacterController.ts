@@ -1,7 +1,7 @@
 import { CHARACTER } from '../../config/index.js';
 import { clamp, wrapAngle, horizontalSpeed } from '../../utils/index.js';
 import { MovementMode, GaitType, isAirborne, getDisplayState, type MovementModeType, type GaitTypeType } from './MovementModes.js';
-import type { IPhysicsWorld } from '../../physics/IPhysicsWorld.js';
+import type { CharacterShapeDefinition, IPhysicsWorld } from '../../physics/IPhysicsWorld.js';
 import type { Vector3Like, CharacterConfig } from '../../types/index.js';
 
 interface Vector2Like {
@@ -96,8 +96,12 @@ export class CharacterController {
    * Update controller
    */
   update(deltaTime: number, cameraYaw: number = 0): void {
-    this.probeGround();
-    this.updateMovementMode(deltaTime);
+    const useCharacterMovement = typeof this.physics.supportsCharacterMovement === 'function' &&
+      this.physics.supportsCharacterMovement();
+
+    if (!useCharacterMovement) {
+      this.probeGround();
+    }
 
     const desiredVelocity = this.computeDesiredVelocity(cameraYaw);
     this.applyAcceleration(desiredVelocity, deltaTime);
@@ -108,10 +112,57 @@ export class CharacterController {
       this.projectVelocityOntoSlope();
     }
 
-    // Integrate position
-    this.position.x += this.velocity.x * deltaTime;
-    this.position.y += this.velocity.y * deltaTime;
-    this.position.z += this.velocity.z * deltaTime;
+    const desiredMovement = {
+      x: this.velocity.x * deltaTime,
+      y: this.velocity.y * deltaTime,
+      z: this.velocity.z * deltaTime
+    };
+
+    if (useCharacterMovement) {
+      const movementResult = this.physics.computeCharacterMovement(
+        this.position,
+        desiredMovement,
+        this.getCharacterShape()
+      );
+
+      this.position.x += movementResult.movement.x;
+      this.position.y += movementResult.movement.y;
+      this.position.z += movementResult.movement.z;
+
+      if (deltaTime > 0) {
+        this.velocity.x = movementResult.movement.x / deltaTime;
+        this.velocity.y = movementResult.movement.y / deltaTime;
+        this.velocity.z = movementResult.movement.z / deltaTime;
+      }
+
+      this.groundHeight = movementResult.groundHeight;
+      this.groundNormal = movementResult.groundNormal;
+      const computedGrounded = movementResult.grounded;
+      this.isGrounded = computedGrounded;
+      this.updateSlopeAngle();
+
+      if (!computedGrounded) {
+        const distanceToGround = this.position.y - this.groundHeight;
+        const withinSnap =
+          Math.abs(distanceToGround) <= this.config.SNAP_DISTANCE &&
+          this.velocity.y < 5 &&
+          this.slopeAngle <= this.config.SLOPE_LIMIT;
+        const belowGround = distanceToGround < 0 && this.slopeAngle <= this.config.SLOPE_LIMIT;
+        if (withinSnap || belowGround) {
+          this.isGrounded = true;
+        }
+      }
+
+      if (this.isGrounded && this.movementMode === MovementMode.FALLING) {
+        this.movementMode = MovementMode.LANDING;
+        this.landingTimer = this.config.LANDING_DURATION;
+      }
+    } else {
+      // Integrate position
+      this.position.x += desiredMovement.x;
+      this.position.y += desiredMovement.y;
+      this.position.z += desiredMovement.z;
+    }
 
     // Snap to ground when grounded or landing
     if (this.movementMode === MovementMode.GROUNDED ||
@@ -120,6 +171,11 @@ export class CharacterController {
       this.snapToGround();
     }
 
+    if (this.isGrounded && this.velocity.y < 0) {
+      this.velocity.y = 0;
+    }
+
+    this.updateMovementMode(deltaTime);
     this.updateFacing(deltaTime);
     this.updateGait();
 
@@ -133,9 +189,7 @@ export class CharacterController {
     const ground = this.physics.probeGround(this.position.x, this.position.z);
     this.groundHeight = ground.height;
     this.groundNormal = ground.normal;
-    const safeNormalY = clamp(ground.normal.y, -1, 1);
-    const angle = Math.acos(safeNormalY) * (180 / Math.PI);
-    this.slopeAngle = Number.isFinite(angle) ? angle : 0;
+    this.updateSlopeAngle();
 
     const distanceToGround = this.position.y - this.groundHeight;
     const wasGrounded = this.isGrounded;
@@ -156,6 +210,12 @@ export class CharacterController {
       this.movementMode = MovementMode.LANDING;
       this.landingTimer = this.config.LANDING_DURATION;
     }
+  }
+
+  updateSlopeAngle(): void {
+    const safeNormalY = clamp(this.groundNormal.y, -1, 1);
+    const angle = Math.acos(safeNormalY) * (180 / Math.PI);
+    this.slopeAngle = Number.isFinite(angle) ? angle : 0;
   }
 
   updateMovementMode(deltaTime: number): void {
@@ -344,6 +404,14 @@ export class CharacterController {
    */
   getSpeed(): number {
     return horizontalSpeed(this.velocity);
+  }
+
+  private getCharacterShape(): CharacterShapeDefinition {
+    return {
+      type: 'capsule',
+      radius: this.config.CAPSULE_RADIUS,
+      height: this.config.CAPSULE_HEIGHT
+    };
   }
 }
 

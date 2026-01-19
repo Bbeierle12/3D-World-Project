@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('three', async () => {
-  const actual = await vi.importActual('three')
-
+vi.mock('three/webgpu', () => {
   class MockRenderer {
     constructor() {
       this.domElement = document.createElement('canvas')
       this.shadowMap = {}
+    }
+    init() {
+      return Promise.resolve()
     }
     setSize() {}
     setPixelRatio() {}
@@ -14,7 +15,9 @@ vi.mock('three', async () => {
     dispose() {}
   }
 
-  return { ...actual, WebGLRenderer: MockRenderer }
+  MockRenderer.isAvailable = () => true
+
+  return { WebGPURenderer: MockRenderer }
 })
 
 describe('core/SceneManager', () => {

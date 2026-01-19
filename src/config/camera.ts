@@ -18,8 +18,17 @@ export const CAMERA: CameraConfig = {
   // Smoothing
   POSITION_LERP: 0.05,
   ROTATION_LERP: 0.05,
+  ZOOM_LERP: 0.1,
 
-  // Orbit controls (for dev tools)
+  // Mouse controls
+  ROTATE_SPEED: 0.005,
+  ZOOM_SPEED: 0.002,
+  PAN_SPEED: 0.01,
+  INVERT_X: false,
+  INVERT_Y: false,
+  INVERT_ZOOM: false,
+
+  // Orbit controls
   MIN_DISTANCE: 5,
   MAX_DISTANCE: 50,
   MIN_POLAR_ANGLE: 0.1,

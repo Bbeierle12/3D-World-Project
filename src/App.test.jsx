@@ -1,20 +1,13 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { ControlsOverlay } from './components/ControlsOverlay.jsx'
 import App from './App.jsx'
 
-vi.mock('./components', async () => {
-  const actual = await vi.importActual('./components')
-
-  const Canvas3D = () => {
-    return <div data-testid="canvas3d" />
-  }
-
-  return {
-    ...actual,
-    Canvas3D
-  }
-})
+vi.mock('./components', () => ({
+  Canvas3D: () => <div data-testid="canvas3d" />,
+  ControlsOverlay
+}))
 
 describe('App', () => {
   it('renders canvas and controls overlay', async () => {

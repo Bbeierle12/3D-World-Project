@@ -39,6 +39,9 @@ vi.mock('../core/index.js', () => {
       this.renderer = { domElement: document.createElement('canvas') }
       container.appendChild(this.renderer.domElement)
     }
+    init() {
+      return Promise.resolve()
+    }
     getTracker() {
       return this.tracker
     }
@@ -91,10 +94,65 @@ vi.mock('../terrain/index.js', () => ({
 }))
 
 vi.mock('../physics/index.js', () => ({
+  RapierPhysics: class {
+    static async create() {
+      return new this()
+    }
+    probeGround() {
+      return { height: 0, normal: { x: 0, y: 1, z: 0 } }
+    }
+    update() {}
+    dispose() {}
+  },
   SimplePhysics: class {
     probeGround() {
       return { height: 0, normal: { x: 0, y: 1, z: 0 } }
     }
+    update() {}
+  },
+  CenterOfMassSystem: class {
+    update() {
+      return {
+        position: { x: 0, y: 0, z: 0 },
+        velocity: { x: 0, y: 0, z: 0 },
+        groundProjection: { x: 0, y: 0, z: 0 },
+        isStable: true,
+        stabilityMargin: 0,
+        stabilityLevel: 'stable'
+      }
+    }
+  },
+  SupportPolygonCalculator: class {
+    calculate() {
+      return []
+    }
+  }
+}))
+
+vi.mock('../debug/index.js', () => ({
+  CoMVisualizer: class {
+    addToScene() {}
+    removeFromScene() {}
+    setVisible() {}
+    update() {}
+  },
+  SupportPolygonVisualizer: class {
+    addToScene() {}
+    removeFromScene() {}
+    setVisible() {}
+    update() {}
+  },
+  TrajectoryTrail: class {
+    addToScene() {}
+    removeFromScene() {}
+    setVisible() {}
+    addPoint() {}
+  },
+  VelocityArrow: class {
+    addToScene() {}
+    removeFromScene() {}
+    setVisible() {}
+    update() {}
   }
 }))
 
@@ -170,7 +228,11 @@ vi.mock('../character/index.js', () => {
       this.applyAirbornePose = vi.fn()
       this.applyUpperBodyAnimation = vi.fn()
       this.syncToController = vi.fn()
+      this.applyPose = vi.fn()
+      this.getPose = vi.fn(() => ({}))
       this.getHipWorldPosition = vi.fn(() => ({ x: 0, y: 0, z: 0 }))
+      this.getBoneWorldPositions = vi.fn(() => new Map())
+      this.getFootWorldPosition = vi.fn(() => ({ x: 0, y: 0, z: 0 }))
       rigInstances.push(this)
     }
   }
@@ -181,7 +243,8 @@ vi.mock('../character/index.js', () => {
     ProceduralAnimation,
     StickFigureRig,
     MovementMode,
-    GaitType: { IDLE: 'idle', WALKING: 'walking', RUNNING: 'running' }
+    GaitType: { IDLE: 'idle', WALKING: 'walking', RUNNING: 'running' },
+    BUILT_IN_POSE_PRESETS: []
   }
 })
 
@@ -189,6 +252,15 @@ vi.mock('../camera/index.js', () => ({
   FollowCamera: class {
     constructor() {
       this.update = vi.fn()
+      this.setOrbitLimits = vi.fn()
+      this.setRotationSmoothing = vi.fn()
+      this.setZoomSmoothing = vi.fn()
+      this.setSmoothing = vi.fn()
+      this.addYaw = vi.fn()
+      this.addPitch = vi.fn()
+      this.addPan = vi.fn()
+      this.addDistance = vi.fn()
+      this.resetOrbit = vi.fn()
     }
     getYaw() {
       return 0
@@ -196,20 +268,13 @@ vi.mock('../camera/index.js', () => ({
   }
 }))
 
-vi.mock('../dev/index.js', () => ({
-  DevTools: class {
-    constructor() {
-      this.updateTelemetry = vi.fn()
-      this.dispose = vi.fn()
-    }
-  }
-}))
-
 import { Canvas3D } from './Canvas3D.jsx'
 
 describe('components/Canvas3D', () => {
-  it('initializes engine, input, and rig', () => {
+  it('initializes engine, input, and rig', async () => {
     const { unmount } = render(<Canvas3D />)
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(engineInstances[0].start).toHaveBeenCalled()
     expect(inputInstances[0].attach).toHaveBeenCalled()

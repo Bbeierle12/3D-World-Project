@@ -1,5 +1,3 @@
-import type * as THREE from 'three';
-
 // =============================================================================
 // Vector Types
 // =============================================================================
@@ -8,6 +6,47 @@ export interface Vector3Like {
   x: number;
   y: number;
   z: number;
+}
+
+// =============================================================================
+// Logging Types
+// =============================================================================
+
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogCategory =
+  | 'system'
+  | 'input'
+  | 'physics'
+  | 'animation'
+  | 'camera'
+  | 'ui'
+  | 'telemetry'
+  | 'render';
+
+export interface LoggingConfig {
+  ENABLED: boolean;
+  MAX_ENTRIES: number;
+  MIN_LEVEL: LogLevel;
+  CATEGORIES: Record<LogCategory, boolean>;
+}
+
+// =============================================================================
+// Render Types
+// =============================================================================
+
+export type RenderBackend = 'webgpu' | 'webgl';
+
+export interface RenderConfig {
+  PREFERRED_BACKEND: RenderBackend;
+  ALLOW_WEBGL_FALLBACK: boolean;
+  ANTIALIAS: boolean;
+  PIXEL_RATIO_MAX: number;
+  SHADOWS_ENABLED: boolean;
+  SHOW_PERF_STATS: boolean;
+  RAYTRACE_ENABLED: boolean;
+  RAYTRACE_SCALE: number;
+  RAYTRACE_MAX_DISTANCE: number;
+  RAYTRACE_UPDATE_HZ: number;
 }
 
 // =============================================================================
@@ -24,6 +63,13 @@ export interface CameraConfig {
   LOOK_AT_Y: number;
   POSITION_LERP: number;
   ROTATION_LERP: number;
+  ZOOM_LERP: number;
+  ROTATE_SPEED: number;
+  ZOOM_SPEED: number;
+  PAN_SPEED: number;
+  INVERT_X: boolean;
+  INVERT_Y: boolean;
+  INVERT_ZOOM: boolean;
   MIN_DISTANCE: number;
   MAX_DISTANCE: number;
   MIN_POLAR_ANGLE: number;
@@ -85,6 +131,9 @@ export interface CharacterConfig {
   STEP_OFFSET: number;
   SLOPE_LIMIT: number;
   SNAP_DISTANCE: number;
+  // Collider
+  CAPSULE_RADIUS: number;
+  CAPSULE_HEIGHT: number;
   // Landing
   LANDING_DURATION: number;
   // Bounds
@@ -164,28 +213,6 @@ export interface DebugConfig {
   VELOCITY_COLOR: number;
   STANCE_COLOR: number;
   SWING_COLOR: number;
-  // Dev tools
-  DEV_TOOLS_ENABLED: boolean;
-  DEV_TOOLS_WIDTH: number;
-  DEV_TOOLS_COLLAPSED: boolean;
-}
-
-// =============================================================================
-// Range Types (for dev panels)
-// =============================================================================
-
-export interface Range {
-  min: number;
-  max: number;
-}
-
-export interface CameraRanges {
-  OFFSET_X: Range;
-  OFFSET_Y: Range;
-  OFFSET_Z: Range;
-  LOOK_AT_Y: Range;
-  POSITION_LERP: Range;
-  FOV: Range;
 }
 
 // =============================================================================
@@ -198,101 +225,8 @@ export interface GameConfig {
   character: CharacterConfig;
   animation: AnimationConfig;
   debug: DebugConfig;
-}
-
-// =============================================================================
-// Forward declarations for game systems
-// These will be replaced with proper imports as files are converted
-// =============================================================================
-
-// For now, we use interface declarations to avoid circular imports
-// These can be imported from their respective modules once converted
-
-export interface IFollowCamera {
-  camera: THREE.PerspectiveCamera;
-  offset: Vector3Like;
-  lookAtOffset: Vector3Like;
-  positionSmoothing: number;
-  yaw: number;
-  targetYaw: number;
-  update(targetPosition: Vector3Like, deltaTime: number): void;
-  setSmoothing(smoothing: number): void;
-  setOffset(x: number, y: number, z: number): void;
-}
-
-export interface ISceneManager {
-  scene: THREE.Scene;
-  camera: THREE.PerspectiveCamera;
-  renderer: THREE.WebGLRenderer;
-  dispose(): void;
-}
-
-export interface ITerrainMesh {
-  mesh: THREE.Mesh | null;
-  dispose(): void;
-}
-
-export interface ITerrainHeightmap {
-  getHeightAt(x: number, z: number): number;
-}
-
-// =============================================================================
-// Character System Interfaces (for DevTools)
-// =============================================================================
-
-export interface ICharacterController {
-  position: Vector3Like;
-  velocity: Vector3Like;
-  walkSpeed: number;
-  runSpeed: number;
-  jumpVelocity: number;
-  gravity: number;
-}
-
-export interface IStickFigureRig {
-  setDebugVisible(visible: boolean, scene: THREE.Scene): void;
-}
-
-export interface IFootIKSystem {
-  upperLegLength: number;
-  lowerLegLength: number;
-  legLength: number;
-}
-
-export interface IProceduralAnimation {
-  // Add methods as needed
-}
-
-// =============================================================================
-// Game Systems (for DevTools)
-// =============================================================================
-
-export interface GameSystems {
-  controller?: ICharacterController;
-  rig?: IStickFigureRig;
-  footIK?: IFootIKSystem;
-  proceduralAnim?: IProceduralAnimation;
-  camera?: IFollowCamera;
-  heightmap?: ITerrainHeightmap;
-  terrainMesh?: ITerrainMesh;
-  scene?: THREE.Scene;
-  sceneManager?: ISceneManager;
-}
-
-// =============================================================================
-// Telemetry Stats
-// =============================================================================
-
-export interface TelemetryStats {
-  state?: string;
-  speed?: number | string;
-  position?: Vector3Like;
-  grounded?: boolean;
-  slopeAngle?: number | string;
-  leftFoot?: string;
-  rightFoot?: string;
-  facing?: number | string;
-  velocityY?: number | string;
+  logging: LoggingConfig;
+  render: RenderConfig;
 }
 
 // =============================================================================
@@ -314,17 +248,6 @@ export interface SegmentMasses {
   rightLowerLeg: number;
   leftFoot: number;
   rightFoot: number;
-}
-
-export interface SegmentCoMPositions {
-  head: number;
-  torso: number;
-  upperArm: number;
-  lowerArm: number;
-  hand: number;
-  upperLeg: number;
-  lowerLeg: number;
-  foot: number;
 }
 
 export interface TrailConfig {
@@ -359,7 +282,6 @@ export interface SupportPolygonConfig {
 
 export interface CoMConfig {
   SEGMENT_MASSES: SegmentMasses;
-  SEGMENT_COM_POSITIONS: SegmentCoMPositions;
   TRAIL: TrailConfig;
   STABILITY: StabilityConfig;
   VELOCITY_ARROW: VelocityArrowConfig;
@@ -376,29 +298,6 @@ export interface CoMState {
   isStable: boolean;
   stabilityMargin: number;
   stabilityLevel: 'stable' | 'warning' | 'unstable';
-}
-
-/**
- * Extended telemetry including CoM data
- */
-export interface CoMTelemetryStats {
-  comPosition: Vector3Like;
-  comVelocity: Vector3Like;
-  comSpeed: number;
-  stabilityMargin: number;
-  isStable: boolean;
-  segmentContributions: Partial<Record<keyof SegmentMasses, Vector3Like>>;
-}
-
-/**
- * Pose preset for saving/loading character poses
- */
-export interface PosePreset {
-  name: string;
-  description?: string;
-  jointAngles: Record<string, { x: number; y: number; z: number }>;
-  rootPosition?: Vector3Like;
-  timestamp?: number;
 }
 
 /**

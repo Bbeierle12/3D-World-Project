@@ -23,19 +23,6 @@ export const COM: CoMConfig = {
     rightFoot: 0.0145     // 1.45%
   },
 
-  // Segment center of mass positions (fraction from proximal end)
-  // Based on biomechanics data
-  SEGMENT_COM_POSITIONS: {
-    head: 0.5,            // Center of head
-    torso: 0.5,           // Middle of torso
-    upperArm: 0.436,      // 43.6% from shoulder
-    lowerArm: 0.43,       // 43% from elbow
-    hand: 0.5,            // Center of hand
-    upperLeg: 0.433,      // 43.3% from hip
-    lowerLeg: 0.433,      // 43.3% from knee
-    foot: 0.5             // Center of foot
-  },
-
   // Trail configuration
   TRAIL: {
     MAX_POINTS: 60,       // 1 second @ 60fps

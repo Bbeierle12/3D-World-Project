@@ -18,6 +18,19 @@ export interface ShapeCastResult {
   normal?: Vector3Like;
 }
 
+export interface CharacterShapeDefinition {
+  type: 'capsule';
+  radius: number;
+  height: number;
+}
+
+export interface CharacterMovementResult {
+  movement: Vector3Like;
+  grounded: boolean;
+  groundHeight: number;
+  groundNormal: Vector3Like;
+}
+
 export interface ShapeDefinition {
   type: 'capsule' | 'sphere';
   radius?: number;
@@ -57,6 +70,27 @@ export class IPhysicsWorld {
     void _distance;
     void _shape;
     throw new Error('shapeCast must be implemented');
+  }
+
+  /**
+   * Returns true if this physics world supports character movement.
+   */
+  supportsCharacterMovement(): boolean {
+    return false;
+  }
+
+  /**
+   * Computes movement for a character collider with collision response.
+   */
+  computeCharacterMovement(
+    _position: Vector3Like,
+    _desiredMovement: Vector3Like,
+    _shape: CharacterShapeDefinition
+  ): CharacterMovementResult {
+    void _position;
+    void _desiredMovement;
+    void _shape;
+    throw new Error('computeCharacterMovement must be implemented');
   }
 
   /**

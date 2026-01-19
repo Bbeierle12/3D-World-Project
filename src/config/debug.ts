@@ -22,12 +22,7 @@ export const DEBUG: DebugConfig = {
   PLUMB_COLOR: 0xffff00,
   VELOCITY_COLOR: 0x00ff00,
   STANCE_COLOR: 0x00ff00,
-  SWING_COLOR: 0xff00ff,
-
-  // Dev tools
-  DEV_TOOLS_ENABLED: true,
-  DEV_TOOLS_WIDTH: 300,
-  DEV_TOOLS_COLLAPSED: false
+  SWING_COLOR: 0xff00ff
 };
 
 export default DEBUG;

@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
-// Mock matchMedia for lil-gui (not available in JSDOM)
+// Mock matchMedia (not available in JSDOM)
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query) => ({

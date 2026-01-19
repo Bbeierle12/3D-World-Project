@@ -6,3 +6,4 @@ export { TwoBoneIK, FootIKSystem, ProceduralAnimation } from './animation/index.
 
 // Rig
 export { StickFigureRig, SkeletonBuilder, createCharacterMaterials } from './rig/index.js';
+export { BUILT_IN_POSE_PRESETS } from './poses.js';

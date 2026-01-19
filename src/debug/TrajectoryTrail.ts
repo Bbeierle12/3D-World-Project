@@ -46,6 +46,7 @@ export class TrajectoryTrail {
     this.material = tracker.trackMaterial(
       new THREE.LineBasicMaterial({
         vertexColors: true,
+        linewidth: COM.TRAIL.LINE_WIDTH,
         transparent: true,
         opacity: 0.8
       })

@@ -30,6 +30,10 @@ export const CHARACTER: CharacterConfig = {
   SLOPE_LIMIT: 45,
   SNAP_DISTANCE: 0.3,
 
+  // Collider
+  CAPSULE_RADIUS: 0.35,
+  CAPSULE_HEIGHT: 5.2,
+
   // Landing
   LANDING_DURATION: 0.15,
 
