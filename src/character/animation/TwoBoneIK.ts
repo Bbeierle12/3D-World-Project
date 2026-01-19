@@ -34,7 +34,7 @@ export class TwoBoneIK {
 
     const a = this.upperLength;
     const b = this.lowerLength;
-    const maxReach = this.totalLength - 0.05;
+    const maxReach = this.totalLength - 0.01;
     const minReach = Math.abs(a - b) + 0.05;
     const c = clamp(distance, minReach, maxReach);
 
