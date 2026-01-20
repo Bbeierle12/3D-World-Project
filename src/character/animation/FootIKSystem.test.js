@@ -16,7 +16,8 @@ describe('character/animation/FootIKSystem', () => {
       GaitType.IDLE,
       0.016,
       flatHeight,
-      flatNormal
+      flatNormal,
+      null
     )
 
     expect(ik.leftFoot.worldTarget.y).toBe(0)
@@ -34,7 +35,8 @@ describe('character/animation/FootIKSystem', () => {
       GaitType.WALKING,
       1,
       flatHeight,
-      flatNormal
+      flatNormal,
+      null
     )
 
     expect(ik.cyclePhase).toBeGreaterThan(0)

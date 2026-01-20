@@ -76,9 +76,19 @@ export function Canvas3D() {
     leftFoot: '',
     rightFoot: '',
     facing: '0',
-    velocityY: '0.00'
+    velocityY: '0.00',
+    input: { x: 0, y: 0 },
+    inputWorld: { x: 0, z: 0 },
+    velocity: { x: 0, z: 0 },
+    directionDot: 0
   }));
   const [comTelemetry, setComTelemetry] = useState(null);
+  const [poseJointNames, setPoseJointNames] = useState([]);
+  const [poseJoint, setPoseJoint] = useState('');
+  const [poseTelemetry, setPoseTelemetry] = useState(null);
+  const posePrevRef = useRef(null);
+  const poseJointRef = useRef(poseJoint);
+  const poseJointNamesRef = useRef(poseJointNames);
   const [perfStats, setPerfStats] = useState(() => ({
     fps: '0',
     frameTime: '0.0',
@@ -114,6 +124,8 @@ export function Canvas3D() {
   const [cameraSettings, setCameraSettings] = useState(CAMERA_SETTINGS_DEFAULTS);
   const cameraSettingsRef = useRef(cameraSettings);
   const settingsReadyRef = useRef(false);
+  const cameraYawLockRef = useRef(0);
+  const wasCameraInteractingRef = useRef(false);
 
   const updateDebugFlags = (updater) => {
     setDebugFlags((prev) => {
@@ -384,6 +396,18 @@ export function Canvas3D() {
   }, [poseLock]);
 
   useEffect(() => {
+    posePrevRef.current = null;
+  }, [poseJoint]);
+
+  useEffect(() => {
+    poseJointRef.current = poseJoint;
+  }, [poseJoint]);
+
+  useEffect(() => {
+    poseJointNamesRef.current = poseJointNames;
+  }, [poseJointNames]);
+
+  useEffect(() => {
     cameraSettingsRef.current = cameraSettings;
     const { followCamera } = systemsRef.current;
     if (followCamera) {
@@ -503,6 +527,18 @@ export function Canvas3D() {
       // Visual rig
       const rig = new StickFigureRig(tracker);
       sceneManager.add(rig.group);
+      const jointNames = typeof rig.getJointNames === 'function'
+        ? rig.getJointNames()
+        : [];
+      if (jointNames.length > 0) {
+        setPoseJointNames(jointNames);
+        poseJointNamesRef.current = jointNames;
+        setPoseJoint((prev) => {
+          const next = prev || jointNames[0];
+          poseJointRef.current = next;
+          return next;
+        });
+      }
 
       // Debug visualization
       rig.setDebugVisible(debugRef.current.showFootTargets, sceneManager.scene);
@@ -534,6 +570,7 @@ export function Canvas3D() {
       followCamera.setRotationSmoothing(cameraSettingsRef.current.rotationLerp);
       followCamera.setZoomSmoothing(cameraSettingsRef.current.zoomLerp);
       followCamera.setSmoothing(cameraSettingsRef.current.positionLerp);
+      cameraYawLockRef.current = followCamera.getYaw();
 
       systemsRef.current = {
         sceneManager,
@@ -666,10 +703,35 @@ export function Canvas3D() {
         const moveDir = input.getMovementDirection();
         const wantsRun = input.isHeld('run');
         const wantsJump = input.isPressed('jump');
+        const isCameraInteracting = Boolean(pointerState.mode);
+        if (isCameraInteracting && !wasCameraInteractingRef.current) {
+          cameraYawLockRef.current = followCamera.getYaw();
+        }
+        wasCameraInteractingRef.current = isCameraInteracting;
+        const cameraYaw = isCameraInteracting
+          ? cameraYawLockRef.current
+          : followCamera.getYaw();
+        const inputLen = Math.hypot(moveDir.x, moveDir.y);
+        let moveIntent = null;
+        if (inputLen > 0.01) {
+          const inputX = moveDir.x / inputLen;
+          const inputY = moveDir.y / inputLen;
+          const cos = Math.cos(cameraYaw);
+          const sin = Math.sin(cameraYaw);
+          const forwardX = -sin;
+          const forwardZ = -cos;
+          const rightX = cos;
+          const rightZ = -sin;
+          moveIntent = {
+            x: rightX * inputX + forwardX * inputY,
+            y: 0,
+            z: rightZ * inputX + forwardZ * inputY
+          };
+        }
 
         // Update controller
         controller.setInput(moveDir, wantsRun, wantsJump);
-        controller.update(deltaTime, followCamera.getYaw());
+        controller.update(deltaTime, cameraYaw);
 
         if (controller.movementMode !== lastMovementMode) {
           debugLogger.log('animation', 'info', `Movement mode -> ${controller.movementMode}`);
@@ -697,7 +759,8 @@ export function Canvas3D() {
             controller.gait,
             deltaTime,
             (x, z) => heightmap.getHeight(x, z),
-            (x, z) => heightmap.getNormal(x, z)
+            (x, z) => heightmap.getNormal(x, z),
+            moveIntent
           );
 
           const pelvisOffset = footIK.computePelvisOffset(
@@ -809,6 +872,7 @@ export function Canvas3D() {
         // Update telemetry at 10 Hz
         telemetryAccumulator += deltaTime;
         if (telemetryAccumulator >= 0.1) {
+          const sampleDt = telemetryAccumulator;
           telemetryAccumulator = 0;
           const speed = typeof controller.getSpeed === 'function'
             ? controller.getSpeed()
@@ -817,6 +881,16 @@ export function Canvas3D() {
             ? controller.getDisplayState()
             : controller.movementMode;
           const facingDeg = (controller.facing * 180 / Math.PI) % 360;
+          const velocityLen = Math.hypot(controller.velocity.x, controller.velocity.z);
+          const velocityDir = velocityLen > 0.001
+            ? { x: controller.velocity.x / velocityLen, z: controller.velocity.z / velocityLen }
+            : { x: 0, z: 0 };
+          const inputWorldDir = moveIntent
+            ? { x: moveIntent.x, z: moveIntent.z }
+            : { x: 0, z: 0 };
+          const directionDot = moveIntent && velocityLen > 0.001
+            ? velocityDir.x * inputWorldDir.x + velocityDir.z * inputWorldDir.z
+            : 0;
 
           setTelemetry({
             state: stateLabel,
@@ -831,7 +905,11 @@ export function Canvas3D() {
             leftFoot: footPhases.left,
             rightFoot: footPhases.right,
             facing: facingDeg.toFixed(0),
-            velocityY: controller.velocity.y.toFixed(2)
+            velocityY: controller.velocity.y.toFixed(2),
+            input: { x: moveDir.x, y: moveDir.y },
+            inputWorld: inputWorldDir,
+            velocity: { x: controller.velocity.x, z: controller.velocity.z },
+            directionDot
           });
 
           setComTelemetry({
@@ -853,6 +931,74 @@ export function Canvas3D() {
             stabilityMargin: comState.stabilityMargin.toFixed(3),
             stabilityLevel: comState.stabilityLevel
           });
+
+          const jointName = poseJointRef.current || poseJointNamesRef.current[0];
+          if (jointName && typeof rig.getJointTransform === 'function') {
+            const jointTransform = rig.getJointTransform(jointName);
+            if (jointTransform) {
+              const safeDt = Math.max(sampleDt, 0.001);
+              const prev = posePrevRef.current;
+              let velocity = { x: 0, y: 0, z: 0 };
+              let speed3 = 0;
+              let angularSpeed = 0;
+
+              if (prev && prev.name === jointName) {
+                velocity = {
+                  x: (jointTransform.position.x - prev.position.x) / safeDt,
+                  y: (jointTransform.position.y - prev.position.y) / safeDt,
+                  z: (jointTransform.position.z - prev.position.z) / safeDt
+                };
+                speed3 = Math.sqrt(
+                  velocity.x ** 2 +
+                  velocity.y ** 2 +
+                  velocity.z ** 2
+                );
+
+                const qPrev = new THREE.Quaternion(
+                  prev.quaternion.x,
+                  prev.quaternion.y,
+                  prev.quaternion.z,
+                  prev.quaternion.w
+                );
+                const qCur = new THREE.Quaternion(
+                  jointTransform.quaternion.x,
+                  jointTransform.quaternion.y,
+                  jointTransform.quaternion.z,
+                  jointTransform.quaternion.w
+                );
+                const dq = qPrev.conjugate().multiply(qCur);
+                const w = Math.max(-1, Math.min(1, dq.w));
+                const angle = 2 * Math.acos(w);
+                angularSpeed = angle / safeDt;
+              }
+
+              const worldEuler = new THREE.Euler().setFromQuaternion(
+                new THREE.Quaternion(
+                  jointTransform.quaternion.x,
+                  jointTransform.quaternion.y,
+                  jointTransform.quaternion.z,
+                  jointTransform.quaternion.w
+                ),
+                'YXZ'
+              );
+
+              setPoseTelemetry({
+                joint: jointName,
+                position: jointTransform.position,
+                localRotation: jointTransform.localRotation,
+                worldRotation: { x: worldEuler.x, y: worldEuler.y, z: worldEuler.z },
+                velocity,
+                speed: speed3,
+                angularSpeed
+              });
+
+              posePrevRef.current = {
+                name: jointName,
+                position: { ...jointTransform.position },
+                quaternion: { ...jointTransform.quaternion }
+              };
+            }
+          }
         }
 
         if (showPerf) {
@@ -1022,6 +1168,12 @@ export function Canvas3D() {
           stats={telemetry}
           com={comTelemetry}
           perf={showPerf ? perfStats : null}
+          pose={{
+            joints: poseJointNames,
+            selected: poseJoint,
+            data: poseTelemetry
+          }}
+          onSelectPoseJoint={setPoseJoint}
         />
       )}
       <QuickActions

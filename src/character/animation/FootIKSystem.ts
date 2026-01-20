@@ -94,7 +94,8 @@ export class FootIKSystem {
     gait: GaitTypeType,
     deltaTime: number,
     getTerrainHeight: TerrainHeightFunction,
-    getTerrainNormal: TerrainNormalFunction
+    getTerrainNormal: TerrainNormalFunction,
+    moveIntent?: Vector3Like
   ): void {
     const speed = Math.sqrt(velocity.x ** 2 + velocity.z ** 2);
 
@@ -121,14 +122,31 @@ export class FootIKSystem {
       : ANIMATION.WALK_STRIDE_HEIGHT;
 
     // Movement direction
+    const facingDirX = Math.sin(characterFacing);
+    const facingDirZ = Math.cos(characterFacing);
     const moveLen = Math.sqrt(velocity.x ** 2 + velocity.z ** 2);
-    let moveDirX: number, moveDirZ: number;
+    let moveDirX = facingDirX;
+    let moveDirZ = facingDirZ;
     if (moveLen > 0.01) {
       moveDirX = velocity.x / moveLen;
       moveDirZ = velocity.z / moveLen;
-    } else {
-      moveDirX = Math.sin(characterFacing);
-      moveDirZ = Math.cos(characterFacing);
+    }
+
+    const intentLen = moveIntent ? Math.sqrt(moveIntent.x ** 2 + moveIntent.z ** 2) : 0;
+    if (intentLen > 0.01) {
+      const intentDirX = moveIntent.x / intentLen;
+      const intentDirZ = moveIntent.z / intentLen;
+      let useIntent = moveLen < 0.1;
+      if (!useIntent && moveLen > 0.01) {
+        const facingDot = moveDirX * facingDirX + moveDirZ * facingDirZ;
+        if (facingDot < 0.5) {
+          useIntent = true;
+        }
+      }
+      if (useIntent) {
+        moveDirX = intentDirX;
+        moveDirZ = intentDirZ;
+      }
     }
 
     // Perpendicular for hip offset (points RIGHT relative to movement direction)

@@ -233,6 +233,12 @@ vi.mock('../character/index.js', () => {
       this.getHipWorldPosition = vi.fn(() => ({ x: 0, y: 0, z: 0 }))
       this.getBoneWorldPositions = vi.fn(() => new Map())
       this.getFootWorldPosition = vi.fn(() => ({ x: 0, y: 0, z: 0 }))
+      this.getJointNames = vi.fn(() => ['root'])
+      this.getJointTransform = vi.fn(() => ({
+        position: { x: 0, y: 0, z: 0 },
+        localRotation: { x: 0, y: 0, z: 0 },
+        quaternion: { x: 0, y: 0, z: 0, w: 1 }
+      }))
       rigInstances.push(this)
     }
   }

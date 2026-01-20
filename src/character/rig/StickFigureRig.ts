@@ -380,6 +380,36 @@ export class StickFigureRig {
   }
 
   /**
+   * Get available joint names for debug/telemetry.
+   */
+  getJointNames(): string[] {
+    return Object.keys(this.pivots);
+  }
+
+  /**
+   * Get a joint's world transform and local rotation.
+   */
+  getJointTransform(jointName: string): {
+    position: Vector3Like;
+    localRotation: Vector3Like;
+    quaternion: { x: number; y: number; z: number; w: number };
+  } | null {
+    const pivot = this.pivots[jointName as keyof Pivots];
+    if (!pivot) return null;
+
+    const worldPos = new THREE.Vector3();
+    const worldQuat = new THREE.Quaternion();
+    pivot.getWorldPosition(worldPos);
+    pivot.getWorldQuaternion(worldQuat);
+
+    return {
+      position: { x: worldPos.x, y: worldPos.y, z: worldPos.z },
+      localRotation: { x: pivot.rotation.x, y: pivot.rotation.y, z: pivot.rotation.z },
+      quaternion: { x: worldQuat.x, y: worldQuat.y, z: worldQuat.z, w: worldQuat.w }
+    };
+  }
+
+  /**
    * Get hip world position for IK
    */
   getHipWorldPosition(side: 'left' | 'right', charPos: Vector3Like, facing: number, pelvisOffset: number): Vector3Like {

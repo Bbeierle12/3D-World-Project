@@ -7,7 +7,7 @@ import React from 'react';
  * @param {object} [props.com]
  * @param {object} [props.perf]
  */
-export function TelemetryPanel({ stats, com, perf }) {
+export function TelemetryPanel({ stats, com, perf, pose, onSelectPoseJoint }) {
   const formatValue = (value, digits = 2) => {
     if (typeof value === 'number') {
       return value.toFixed(digits);
@@ -24,6 +24,9 @@ export function TelemetryPanel({ stats, com, perf }) {
     if (level === 'unstable') return 'text-red-400';
     return 'text-gray-300';
   };
+  const toDegrees = (radians) => (typeof radians === 'number'
+    ? radians * (180 / Math.PI)
+    : 0);
 
   return (
     <div className="absolute top-4 right-4 bg-black bg-opacity-80 text-white p-4 rounded-lg min-w-[200px]">
@@ -53,6 +56,36 @@ export function TelemetryPanel({ stats, com, perf }) {
           <span className="text-gray-400">Slope:</span>
           <span className="text-orange-400">{formatValue(stats.slopeAngle, 1)}°</span>
         </div>
+        {stats.input && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Input:</span>
+            <span className="text-blue-300">
+              ({formatValue(stats.input.x, 2)}, {formatValue(stats.input.y, 2)})
+            </span>
+          </div>
+        )}
+        {stats.inputWorld && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Move Dir:</span>
+            <span className="text-blue-300">
+              ({formatValue(stats.inputWorld.x, 2)}, {formatValue(stats.inputWorld.z, 2)})
+            </span>
+          </div>
+        )}
+        {stats.velocity && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Velocity:</span>
+            <span className="text-blue-300">
+              ({formatValue(stats.velocity.x, 2)}, {formatValue(stats.velocity.z, 2)})
+            </span>
+          </div>
+        )}
+        {typeof stats.directionDot === 'number' && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Dir Dot:</span>
+            <span className="text-blue-300">{formatValue(stats.directionDot, 2)}</span>
+          </div>
+        )}
         {stats.leftFoot && (
           <>
             <div className="border-t border-gray-600 my-2"></div>
@@ -117,6 +150,59 @@ export function TelemetryPanel({ stats, com, perf }) {
               <span className="text-gray-400">Pixel Ratio:</span>
               <span className="text-cyan-300">{formatValue(perf.pixelRatio, 2)}</span>
             </div>
+          </>
+        )}
+        {pose?.joints?.length > 0 && (
+          <>
+            <div className="border-t border-gray-600 my-2"></div>
+            <div className="text-gray-300 font-semibold">Pose Debug</div>
+            <select
+              className="w-full rounded border border-white/10 bg-black/50 px-2 py-1 text-xs text-white"
+              onChange={(event) => onSelectPoseJoint?.(event.target.value)}
+              value={pose.selected}
+            >
+              {pose.joints.map((joint) => (
+                <option key={joint} value={joint}>
+                  {joint}
+                </option>
+              ))}
+            </select>
+            {pose.data && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Pos:</span>
+                  <span className="text-purple-200">
+                    ({formatValue(pose.data.position?.x, 3)}, {formatValue(pose.data.position?.y, 3)}, {formatValue(pose.data.position?.z, 3)})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Local Rot:</span>
+                  <span className="text-purple-200">
+                    ({formatValue(toDegrees(pose.data.localRotation?.x), 1)}°, {formatValue(toDegrees(pose.data.localRotation?.y), 1)}°, {formatValue(toDegrees(pose.data.localRotation?.z), 1)}°)
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">World Rot:</span>
+                  <span className="text-purple-200">
+                    ({formatValue(toDegrees(pose.data.worldRotation?.x), 1)}°, {formatValue(toDegrees(pose.data.worldRotation?.y), 1)}°, {formatValue(toDegrees(pose.data.worldRotation?.z), 1)}°)
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Vel:</span>
+                  <span className="text-purple-200">
+                    ({formatValue(pose.data.velocity?.x, 2)}, {formatValue(pose.data.velocity?.y, 2)}, {formatValue(pose.data.velocity?.z, 2)})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Speed:</span>
+                  <span className="text-purple-200">{formatValue(pose.data.speed, 2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Ang Vel:</span>
+                  <span className="text-purple-200">{formatValue(toDegrees(pose.data.angularSpeed), 1)}°/s</span>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

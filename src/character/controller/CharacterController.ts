@@ -108,7 +108,7 @@ export class CharacterController {
     this.handleJump();
     this.applyGravity(deltaTime);
 
-    if (this.movementMode === MovementMode.GROUNDED) {
+    if (!useCharacterMovement && this.movementMode === MovementMode.GROUNDED) {
       this.projectVelocityOntoSlope();
     }
 
@@ -335,30 +335,22 @@ export class CharacterController {
   projectVelocityOntoSlope(): void {
     if (this.slopeAngle < 1) return;
 
-    // Project horizontal velocity onto slope tangent
     const nx = this.groundNormal.x;
     const ny = this.groundNormal.y;
     const nz = this.groundNormal.z;
+    const normalLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (normalLen < 0.001) return;
 
-    // Cross(normal, up) for slope right
-    const rightX = nz;
-    const rightZ = -nx;
-    const rightLen = Math.sqrt(rightX ** 2 + rightZ ** 2);
+    const invLen = 1 / normalLen;
+    const nX = nx * invLen;
+    const nY = ny * invLen;
+    const nZ = nz * invLen;
 
-    if (rightLen < 0.001) return;
-
-    // Normalize
-    const rX = rightX / rightLen;
-    const rZ = rightZ / rightLen;
-
-    // Cross(right, normal) for slope tangent
-    const tangentX = rZ * ny;
-    const tangentZ = -rX * ny;
-
-    // Project velocity onto tangent
-    const dot = this.velocity.x * tangentX + this.velocity.z * tangentZ;
-    this.velocity.x = tangentX * dot;
-    this.velocity.z = tangentZ * dot;
+    // Project full velocity onto slope plane (removes normal component).
+    const dot = this.velocity.x * nX + this.velocity.y * nY + this.velocity.z * nZ;
+    this.velocity.x -= nX * dot;
+    this.velocity.y -= nY * dot;
+    this.velocity.z -= nZ * dot;
   }
 
   snapToGround(): void {
