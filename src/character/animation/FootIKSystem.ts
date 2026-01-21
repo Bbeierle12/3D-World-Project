@@ -50,6 +50,11 @@ export class FootIKSystem {
   // Distance tracking for step triggers
   lastCharacterPosition: Vector3Like;
 
+  // Turn-in-place state
+  isTurningInPlace: boolean;
+  turnPlantedLeft: Vector3Like;
+  turnPlantedRight: Vector3Like;
+
   // Configuration for foot planting
   static readonly EARLY_STEP_DISTANCE_FACTOR = 0.8;
   static readonly SWING_RETARGET_MAX_SPEED = 2.0;
@@ -79,6 +84,11 @@ export class FootIKSystem {
 
     // Distance tracking
     this.lastCharacterPosition = { x: 0, y: 0, z: 0 };
+
+    // Turn-in-place state
+    this.isTurningInPlace = false;
+    this.turnPlantedLeft = { x: 0, y: 0, z: 0 };
+    this.turnPlantedRight = { x: 0, y: 0, z: 0 };
   }
 
   createFootState(): FootState {
@@ -153,6 +163,64 @@ export class FootIKSystem {
     getTerrainNormal: TerrainNormalFunction,
     moveIntent?: Vector3Like
   ): void {
+    // TURNING STATE HANDLING - plant both feet and freeze gait
+    if (gait === GaitType.TURNING) {
+      // Enter turning - plant both feet at current positions
+      if (!this.isTurningInPlace) {
+        this.isTurningInPlace = true;
+
+        // Store current foot positions as planted
+        this.turnPlantedLeft.x = this.leftFoot.worldTarget.x;
+        this.turnPlantedLeft.y = getTerrainHeight(this.leftFoot.worldTarget.x, this.leftFoot.worldTarget.z);
+        this.turnPlantedLeft.z = this.leftFoot.worldTarget.z;
+
+        this.turnPlantedRight.x = this.rightFoot.worldTarget.x;
+        this.turnPlantedRight.y = getTerrainHeight(this.rightFoot.worldTarget.x, this.rightFoot.worldTarget.z);
+        this.turnPlantedRight.z = this.rightFoot.worldTarget.z;
+      }
+
+      // Both feet stay planted - only update Y for terrain
+      this.leftFoot.worldTarget.x = this.turnPlantedLeft.x;
+      this.leftFoot.worldTarget.z = this.turnPlantedLeft.z;
+      this.leftFoot.worldTarget.y = getTerrainHeight(this.turnPlantedLeft.x, this.turnPlantedLeft.z);
+      this.leftFoot.terrainHeight = this.leftFoot.worldTarget.y;
+      this.leftFoot.terrainNormal = getTerrainNormal(this.turnPlantedLeft.x, this.turnPlantedLeft.z);
+
+      this.rightFoot.worldTarget.x = this.turnPlantedRight.x;
+      this.rightFoot.worldTarget.z = this.turnPlantedRight.z;
+      this.rightFoot.worldTarget.y = getTerrainHeight(this.turnPlantedRight.x, this.turnPlantedRight.z);
+      this.rightFoot.terrainHeight = this.rightFoot.worldTarget.y;
+      this.rightFoot.terrainNormal = getTerrainNormal(this.turnPlantedRight.x, this.turnPlantedRight.z);
+
+      // Both feet in stance, cycle frozen
+      this.leftFoot.phase = FootPhase.STANCE;
+      this.rightFoot.phase = FootPhase.STANCE;
+      this.leftFoot.wasInStance = true;
+      this.rightFoot.wasInStance = true;
+
+      // Update last position for tracking
+      this.lastCharacterPosition.x = characterPos.x;
+      this.lastCharacterPosition.y = characterPos.y;
+      this.lastCharacterPosition.z = characterPos.z;
+
+      // DON'T advance cyclePhase during turning - return early
+      return;
+    }
+
+    // Exit turning state - transfer planted positions for smooth transition
+    if (this.isTurningInPlace) {
+      this.isTurningInPlace = false;
+
+      // Transfer turn planted positions to normal planted positions
+      this.leftFoot.plantedPosition.x = this.turnPlantedLeft.x;
+      this.leftFoot.plantedPosition.y = this.turnPlantedLeft.y;
+      this.leftFoot.plantedPosition.z = this.turnPlantedLeft.z;
+
+      this.rightFoot.plantedPosition.x = this.turnPlantedRight.x;
+      this.rightFoot.plantedPosition.y = this.turnPlantedRight.y;
+      this.rightFoot.plantedPosition.z = this.turnPlantedRight.z;
+    }
+
     const speed = Math.sqrt(velocity.x ** 2 + velocity.z ** 2);
 
     // Stride parameters (needed for early step check)
@@ -160,14 +228,9 @@ export class FootIKSystem {
       ? ANIMATION.RUN_STRIDE_LENGTH
       : ANIMATION.WALK_STRIDE_LENGTH;
 
-    // Update cycle phase
+    // Update cycle phase - CRITICAL: cycle rate = speed / stride length
+    // This ensures feet move at exactly the right rate to match character movement
     if (speed > 0.5) {
-      const cycleSpeed = gait === GaitType.RUNNING
-        ? ANIMATION.RUN_CYCLE_SPEED
-        : ANIMATION.WALK_CYCLE_SPEED;
-      const normalizedSpeed = gait === GaitType.RUNNING ? 8 : 4;
-      const speedFactor = speed / normalizedSpeed;
-
       // CHECK: Early step trigger (distance-based override)
       const leftNeedsStep = this.shouldTriggerEarlyStep(this.leftFoot, characterPos, strideLen);
       const rightNeedsStep = this.shouldTriggerEarlyStep(this.rightFoot, characterPos, strideLen);
@@ -180,7 +243,10 @@ export class FootIKSystem {
         this.cyclePhase = 0.0; // Force right foot to lift (wrap)
       }
 
-      this.cyclePhase += deltaTime * cycleSpeed * speedFactor * 0.1;
+      // Correct formula: cycles per second = speed / stride length
+      // This ensures foot plants match actual ground distance traveled
+      const cycleRate = speed / strideLen;
+      this.cyclePhase += deltaTime * cycleRate;
       this.cyclePhase = this.cyclePhase % 1.0;
     }
 
@@ -197,9 +263,11 @@ export class FootIKSystem {
       ? ANIMATION.RUN_STRIDE_HEIGHT
       : ANIMATION.WALK_STRIDE_HEIGHT;
 
-    // Movement direction
+    // Facing direction (for hip offset - must match StickFigureRig)
     const facingDirX = Math.sin(characterFacing);
     const facingDirZ = Math.cos(characterFacing);
+
+    // Movement direction (for stride/step direction)
     const moveLen = Math.sqrt(velocity.x ** 2 + velocity.z ** 2);
     let moveDirX = facingDirX;
     let moveDirZ = facingDirZ;
@@ -225,10 +293,11 @@ export class FootIKSystem {
       }
     }
 
-    // Perpendicular for hip offset (points RIGHT relative to movement direction)
-    // Must match StickFigureRig.getHipWorldPosition which uses (cos, -sin)
-    const perpX = moveDirZ;
-    const perpZ = -moveDirX;
+    // Perpendicular for hip offset - uses FACING direction to match StickFigureRig.getHipWorldPosition
+    // StickFigureRig uses: x = charPos.x + offset * cos(facing), z = charPos.z + offset * -sin(facing)
+    // So perpX = cos(facing) = facingDirZ, perpZ = -sin(facing) = -facingDirX
+    const perpX = facingDirZ;
+    const perpZ = -facingDirX;
 
     this.computeSingleFootTarget(
       this.leftFoot,
@@ -304,8 +373,10 @@ export class FootIKSystem {
       // TRANSITION: SWING → STANCE (touchdown)
       if (!wasStance) {
         // Compute initial plant position (where foot lands)
-        const plantX = hipX + moveDirX * (strideLength / 2);
-        const plantZ = hipZ + moveDirZ * (strideLength / 2);
+        // Plant strideLength/4 ahead so foot ends up strideLength/4 behind at toe-off
+        // (hip travels strideLength/2 during stance phase)
+        const plantX = hipX + moveDirX * (strideLength / 4);
+        const plantZ = hipZ + moveDirZ * (strideLength / 4);
         const plantY = getHeight(plantX, plantZ);
 
         foot.plantedPosition.x = plantX;
@@ -334,8 +405,12 @@ export class FootIKSystem {
         foot.swingStartPosition.z = foot.worldTarget.z;
 
         // Compute swing end target ONCE at lift-off
-        const targetX = hipX + moveDirX * (strideLength / 2);
-        const targetZ = hipZ + moveDirZ * (strideLength / 2);
+        // Target is strideLength/4 ahead of where hip WILL BE at touchdown
+        // Since hip moves strideLength/2 during swing, and we want foot strideLength/4 ahead:
+        // Target = currentHip + strideLength/2 (hip movement) + strideLength/4 (ahead offset)
+        // But we recalculate during swing, so just use strideLength/4 ahead of current hip
+        const targetX = hipX + moveDirX * (strideLength / 4);
+        const targetZ = hipZ + moveDirZ * (strideLength / 4);
         const targetY = getHeight(targetX, targetZ);
 
         foot.swingEndTarget.x = targetX;
@@ -348,8 +423,9 @@ export class FootIKSystem {
       const heightOffset = Math.sin(swingProgress * Math.PI) * strideHeight;
 
       // Allow LIMITED mid-swing retargeting for responsiveness
-      const newTargetX = hipX + moveDirX * (strideLength / 2);
-      const newTargetZ = hipZ + moveDirZ * (strideLength / 2);
+      // Target strideLength/4 ahead of current hip
+      const newTargetX = hipX + moveDirX * (strideLength / 4);
+      const newTargetZ = hipZ + moveDirZ * (strideLength / 4);
 
       const maxDelta = FootIKSystem.SWING_RETARGET_MAX_SPEED * deltaTime;
       const retargetDx = newTargetX - foot.swingEndTarget.x;
@@ -431,6 +507,13 @@ export class FootIKSystem {
       left: { ...this.leftFoot.plantedPosition },
       right: { ...this.rightFoot.plantedPosition }
     };
+  }
+
+  /**
+   * Check if currently in turn-in-place state
+   */
+  isTurning(): boolean {
+    return this.isTurningInPlace;
   }
 
   /**

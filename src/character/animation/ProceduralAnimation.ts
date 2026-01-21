@@ -76,15 +76,24 @@ export class ProceduralAnimation {
     // Torso based on movement mode and gait
     if (movementMode === MovementMode.GROUNDED || movementMode === MovementMode.LANDING) {
       if (gait === GaitType.RUNNING) {
-        torsoLean = ANIMATION.TORSO_LEAN_RUN + Math.sin(phase * 2) * 0.03;
-        torsoTwist = Math.sin(phase) * 0.08;
-        headBob = -Math.sin(phase * 2) * 0.06;
-        hipSway = Math.sin(phase) * 0.04;
+        // Forward lean with vertical bounce at each foot strike (cos peaks at touchdown)
+        torsoLean = ANIMATION.TORSO_LEAN_RUN + Math.abs(Math.cos(phase)) * 0.04;
+        // Torso twists opposite to hips - use cos so twist is at max at touchdown
+        // At cyclePhase=0 (left forward): twist right (positive)
+        torsoTwist = Math.cos(phase) * ANIMATION.TORSO_TWIST_AMOUNT * 1.5;
+        // Head dips at foot strikes (cyclePhase 0 and 0.5)
+        headBob = -Math.abs(Math.cos(phase)) * ANIMATION.HEAD_BOB_AMOUNT * 2;
+        // Hip sway - lateral shift follows leg cycle
+        hipSway = Math.cos(phase) * ANIMATION.HIP_SWAY_AMOUNT;
       } else if (gait === GaitType.WALKING) {
-        torsoLean = ANIMATION.TORSO_LEAN_WALK + Math.sin(phase * 2) * 0.02;
-        torsoTwist = Math.sin(phase) * 0.05;
-        headBob = -Math.sin(phase * 2) * 0.03;
-        hipSway = Math.sin(phase) * 0.04;
+        // Subtle forward lean with gentle bob at each step
+        torsoLean = ANIMATION.TORSO_LEAN_WALK + Math.abs(Math.cos(phase)) * 0.02;
+        // Counter-rotation of torso - in sync with leg cycle
+        torsoTwist = Math.cos(phase) * ANIMATION.TORSO_TWIST_AMOUNT;
+        // Head dips at foot strikes
+        headBob = -Math.abs(Math.cos(phase)) * ANIMATION.HEAD_BOB_AMOUNT;
+        // Hip sway toward stance leg
+        hipSway = Math.cos(phase) * ANIMATION.HIP_SWAY_AMOUNT;
       } else {
         // Idle breathing
         torsoLean = Math.sin(time * ANIMATION.BREATHE_SPEED) * ANIMATION.BREATHE_AMPLITUDE;
@@ -95,13 +104,25 @@ export class ProceduralAnimation {
       torsoLean = ANIMATION.TORSO_LEAN_FALL;
     }
 
-    // Arms based on gait
+    // Arms based on gait - contralateral to legs for natural walking motion
+    // When left leg steps forward (cyclePhase=0), left arm goes back, right arm forward
     if (gait !== GaitType.IDLE) {
-      const intensity = gait === GaitType.RUNNING ? 1.3 : 0.8;
-      leftArmSwing = Math.sin(phase + Math.PI) * 0.7 * intensity;
-      rightArmSwing = Math.sin(phase) * 0.7 * intensity;
-      leftElbowBend = -((Math.cos(phase + Math.PI) + 1) * 0.35 * intensity + 0.1);
-      rightElbowBend = -((Math.cos(phase) + 1) * 0.35 * intensity + 0.1);
+      const armSwingAmount = gait === GaitType.RUNNING
+        ? ANIMATION.ARM_SWING_RUN
+        : ANIMATION.ARM_SWING_WALK;
+
+      // Use cosine for correct phase alignment with leg touchdown
+      // At cyclePhase=0 (left leg touchdown): leftArm=-1 (back), rightArm=+1 (forward)
+      // At cyclePhase=0.5 (right leg touchdown): leftArm=+1 (forward), rightArm=-1 (back)
+      leftArmSwing = -Math.cos(phase) * armSwingAmount;
+      rightArmSwing = Math.cos(phase) * armSwingAmount;
+
+      // Elbow bends more when arm is back (pumping motion)
+      const elbowIntensity = gait === GaitType.RUNNING ? 0.5 : 0.3;
+      // Left elbow max bend when cos(phase)=1 (arm back), min when cos(phase)=-1 (arm forward)
+      leftElbowBend = -(ANIMATION.ELBOW_BEND_BASE + (1 + Math.cos(phase)) * elbowIntensity);
+      // Right elbow max bend when cos(phase)=-1 (arm back), min when cos(phase)=1 (arm forward)
+      rightElbowBend = -(ANIMATION.ELBOW_BEND_BASE + (1 - Math.cos(phase)) * elbowIntensity);
     }
 
     // Airborne arms

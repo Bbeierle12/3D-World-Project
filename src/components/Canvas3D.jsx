@@ -625,6 +625,10 @@ export function Canvas3D() {
         pointerState.lastY = event.clientY;
         pointerState.pointerId = event.pointerId;
         containerRef.current.setPointerCapture?.(event.pointerId);
+        // Disable character-follow mode when user starts orbiting
+        if (shouldOrbit) {
+          followCamera.setFollowCharacterFacing(false);
+        }
         debugLogger.log('camera', 'debug', `Camera ${pointerState.mode} start`);
       };
 
@@ -651,6 +655,10 @@ export function Canvas3D() {
           return;
         }
         if (pointerState.mode) {
+          // Re-enable character-follow mode when orbit ends
+          if (pointerState.mode === 'orbit') {
+            followCamera.setFollowCharacterFacing(true);
+          }
           debugLogger.log('camera', 'debug', 'Camera interaction end');
         }
         pointerState.mode = null;
@@ -1093,7 +1101,8 @@ export function Canvas3D() {
           }
         }
 
-        // Update camera
+        // Update camera - sync to character facing
+        followCamera.setCharacterFacing(controller.facing);
         followCamera.update(controller.position, deltaTime);
         }
       };

@@ -51,6 +51,12 @@ export class CharacterController {
   wantsJump: boolean;
   jumpConsumed: boolean;
 
+  // Turning state
+  isTurning: boolean;
+  turningTimer: number;
+  angularVelocity: number;
+  previousFacing: number;
+
   // Config shortcuts
   config: CharacterConfig;
 
@@ -85,6 +91,12 @@ export class CharacterController {
     this.wantsRun = false;
     this.wantsJump = false;
     this.jumpConsumed = false;
+
+    // Turning state
+    this.isTurning = false;
+    this.turningTimer = 0;
+    this.angularVelocity = 0;
+    this.previousFacing = 0;
 
     // Config shortcuts
     this.config = CHARACTER;
@@ -212,6 +224,7 @@ export class CharacterController {
 
     this.updateMovementMode(deltaTime);
     this.updateFacing(deltaTime);
+    this.updateTurningState(deltaTime);
     this.updateGait();
 
     // Clamp to world bounds
@@ -305,35 +318,84 @@ export class CharacterController {
     }
   }
 
-  computeDesiredVelocity(cameraYaw: number): Vector3Like {
-    const inputLen = Math.sqrt(
-      this.inputDirection.x ** 2 + this.inputDirection.y ** 2
-    );
+  computeDesiredVelocity(_cameraYaw: number): Vector3Like {
+    void _cameraYaw; // No longer used - movement is character-relative
 
-    if (inputLen < 0.1) {
+    const inputX = this.inputDirection.x; // A/D: -1 to 1
+    const inputY = this.inputDirection.y; // W/S: 1 to -1
+
+    const hasForward = inputY > 0.1;
+    const hasBackward = inputY < -0.1;
+    const hasLeft = inputX < -0.1;
+    const hasRight = inputX > 0.1;
+    const hasAnyInput = Math.abs(inputX) > 0.1 || Math.abs(inputY) > 0.1;
+
+    if (!hasAnyInput) {
       return { x: 0, y: 0, z: 0 };
     }
 
-    const inputX = this.inputDirection.x / inputLen;
-    const inputY = this.inputDirection.y / inputLen;
+    // Character-relative directions based on current facing
+    const cos = Math.cos(this.facing);
+    const sin = Math.sin(this.facing);
 
-    const cos = Math.cos(cameraYaw);
-    const sin = Math.sin(cameraYaw);
-
-    // Camera-relative directions
-    const forwardX = -sin;
-    const forwardZ = -cos;
+    // Forward is in the direction character is facing
+    const forwardX = sin;
+    const forwardZ = cos;
+    // Right is perpendicular to forward
     const rightX = cos;
     const rightZ = -sin;
-
-    const worldDirX = rightX * inputX + forwardX * inputY;
-    const worldDirZ = rightZ * inputX + forwardZ * inputY;
 
     const targetSpeed = this.wantsRun
       ? this.config.RUN_SPEED
       : this.config.WALK_SPEED;
 
-    this.targetFacing = Math.atan2(worldDirX, worldDirZ);
+    let worldDirX = 0;
+    let worldDirZ = 0;
+
+    // W+A or W+D: Turn while moving forward
+    if (hasForward && (hasLeft || hasRight)) {
+      // Move forward
+      worldDirX = forwardX;
+      worldDirZ = forwardZ;
+      // Turn by adjusting target facing
+      const turnRate = this.config.TURN_SPEED * 0.15; // Turn rate per frame
+      if (hasLeft) {
+        this.targetFacing = this.facing + turnRate;
+      } else if (hasRight) {
+        this.targetFacing = this.facing - turnRate;
+      }
+    }
+    // W alone: Move forward (no turn)
+    else if (hasForward) {
+      worldDirX = forwardX;
+      worldDirZ = forwardZ;
+      this.targetFacing = this.facing; // Maintain current facing
+    }
+    // S alone: Move backward (no turn)
+    else if (hasBackward) {
+      worldDirX = -forwardX;
+      worldDirZ = -forwardZ;
+      this.targetFacing = this.facing; // Maintain current facing
+    }
+    // A alone: Strafe left (no turn)
+    else if (hasLeft) {
+      worldDirX = -rightX;
+      worldDirZ = -rightZ;
+      this.targetFacing = this.facing; // Maintain current facing
+    }
+    // D alone: Strafe right (no turn)
+    else if (hasRight) {
+      worldDirX = rightX;
+      worldDirZ = rightZ;
+      this.targetFacing = this.facing; // Maintain current facing
+    }
+
+    // Normalize direction
+    const dirLen = Math.sqrt(worldDirX ** 2 + worldDirZ ** 2);
+    if (dirLen > 0.001) {
+      worldDirX /= dirLen;
+      worldDirZ /= dirLen;
+    }
 
     return {
       x: worldDirX * targetSpeed,
@@ -429,8 +491,57 @@ export class CharacterController {
     this.facing += clamp(diff, -maxTurn, maxTurn);
   }
 
+  /**
+   * Update turning-in-place state detection
+   */
+  updateTurningState(deltaTime: number): void {
+    // Calculate angular velocity from facing change
+    const facingDelta = wrapAngle(this.facing - this.previousFacing);
+    this.angularVelocity = deltaTime > 0 ? Math.abs(facingDelta / deltaTime) : 0;
+    this.previousFacing = this.facing;
+
+    // Calculate remaining turn angle
+    const remainingTurn = Math.abs(wrapAngle(this.targetFacing - this.facing));
+
+    // Get horizontal speed
+    const hSpeed = horizontalSpeed(this.velocity);
+
+    // Detect turning in place conditions
+    const shouldTurn =
+      this.angularVelocity > this.config.TURN_IN_PLACE_ANGULAR_THRESHOLD &&
+      hSpeed < this.config.TURN_IN_PLACE_SPEED_THRESHOLD &&
+      this.isGrounded;
+
+    // Enter turning state
+    if (shouldTurn && !this.isTurning) {
+      this.isTurning = true;
+      this.turningTimer = 0;
+    }
+
+    // Update turning timer
+    if (this.isTurning) {
+      this.turningTimer += deltaTime;
+    }
+
+    // Exit turning state conditions
+    const turnComplete = remainingTurn < this.config.TURN_IN_PLACE_EXIT_ANGLE;
+    const startedMoving = hSpeed >= this.config.TURN_IN_PLACE_SPEED_THRESHOLD;
+    const minDurationMet = this.turningTimer >= this.config.TURN_IN_PLACE_MIN_DURATION;
+
+    if (this.isTurning && minDurationMet && (turnComplete || startedMoving)) {
+      this.isTurning = false;
+      this.turningTimer = 0;
+    }
+  }
+
   updateGait(): void {
     const speed = horizontalSpeed(this.velocity);
+
+    // Turning takes priority over other gaits when grounded
+    if (this.isTurning && this.isGrounded) {
+      this.gait = GaitType.TURNING;
+      return;
+    }
 
     if (speed < 0.5) {
       this.gait = GaitType.IDLE;
@@ -453,6 +564,13 @@ export class CharacterController {
    */
   getSpeed(): number {
     return horizontalSpeed(this.velocity);
+  }
+
+  /**
+   * Get current angular velocity (rad/s)
+   */
+  getAngularVelocity(): number {
+    return this.angularVelocity;
   }
 
   /**

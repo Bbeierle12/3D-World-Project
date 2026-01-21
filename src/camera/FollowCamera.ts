@@ -30,6 +30,8 @@ export class FollowCamera {
     distance: number;
     panOffset: Vector3Like;
   };
+  followCharacterFacing: boolean;
+  characterFacing: number;
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera;
@@ -84,6 +86,10 @@ export class FollowCamera {
       distance: this.targetDistance,
       panOffset: { x: 0, y: 0, z: 0 }
     };
+
+    // Character facing follow mode
+    this.followCharacterFacing = true; // Enabled by default
+    this.characterFacing = 0;
   }
 
   /**
@@ -91,6 +97,13 @@ export class FollowCamera {
    */
   update(targetPosition: Vector3Like, _deltaTime: number): void {
     void _deltaTime;
+
+    // When following character facing, update target yaw to match
+    if (this.followCharacterFacing) {
+      // Camera should be behind the character (facing + PI)
+      this.targetYaw = this.characterFacing + Math.PI;
+    }
+
     // Smooth yaw/pitch/zoom
     this.yaw = lerp(this.yaw, this.targetYaw, this.rotationSmoothing);
     this.pitch = lerp(this.pitch, this.targetPitch, this.rotationSmoothing);
@@ -248,6 +261,27 @@ export class FollowCamera {
     this.distance = this.defaultOrbit.distance;
     this.targetDistance = this.defaultOrbit.distance;
     this.panOffset = { ...this.defaultOrbit.panOffset };
+  }
+
+  /**
+   * Set character facing for camera follow mode
+   */
+  setCharacterFacing(facing: number): void {
+    this.characterFacing = facing;
+  }
+
+  /**
+   * Enable/disable character facing follow mode
+   */
+  setFollowCharacterFacing(enabled: boolean): void {
+    this.followCharacterFacing = enabled;
+  }
+
+  /**
+   * Check if camera is following character facing
+   */
+  isFollowingCharacterFacing(): boolean {
+    return this.followCharacterFacing;
   }
 
   private clamp(value: number, min: number, max: number): number {

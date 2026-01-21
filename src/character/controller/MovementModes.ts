@@ -16,7 +16,8 @@ export type MovementModeType = typeof MovementMode[keyof typeof MovementMode];
 export const GaitType = {
   IDLE: 'idle',
   WALKING: 'walking',
-  RUNNING: 'running'
+  RUNNING: 'running',
+  TURNING: 'turning'
 } as const;
 
 export type GaitTypeType = typeof GaitType[keyof typeof GaitType];
@@ -45,5 +46,6 @@ export function getDisplayState(movementMode: MovementModeType, gait: GaitTypeTy
   if (movementMode === MovementMode.JUMPING) return 'jumping';
   if (movementMode === MovementMode.FALLING) return 'falling';
   if (movementMode === MovementMode.LANDING) return 'landing';
+  if (gait === GaitType.TURNING) return 'turning';
   return gait;
 }

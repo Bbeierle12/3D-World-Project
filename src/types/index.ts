@@ -123,6 +123,10 @@ export interface CharacterConfig {
   AIR_DECEL: number;
   // Turning
   TURN_SPEED: number;
+  TURN_IN_PLACE_ANGULAR_THRESHOLD: number;
+  TURN_IN_PLACE_SPEED_THRESHOLD: number;
+  TURN_IN_PLACE_EXIT_ANGLE: number;
+  TURN_IN_PLACE_MIN_DURATION: number;
   // Jumping & Gravity
   JUMP_VELOCITY: number;
   GRAVITY: number;
