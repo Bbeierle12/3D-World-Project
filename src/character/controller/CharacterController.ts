@@ -35,6 +35,16 @@ export class CharacterController {
   groundHeight: number;
   slopeAngle: number;
 
+  // Hysteresis counters for ground state transitions
+  groundedFrameCounter: number;
+  airborneFrameCounter: number;
+
+  // Hysteresis configuration
+  static readonly GROUNDED_DEBOUNCE_FRAMES = 2;  // Frames to confirm grounded
+  static readonly AIRBORNE_DEBOUNCE_FRAMES = 4;  // Frames to confirm airborne
+  static readonly LEAVE_GROUND_THRESHOLD = 0.4;  // Higher than SNAP_DISTANCE
+  static readonly LAND_THRESHOLD = 0.25;         // Lower than SNAP_DISTANCE
+
   // Input state
   inputDirection: Vector2Like;
   wantsRun: boolean;
@@ -65,6 +75,10 @@ export class CharacterController {
     this.groundNormal = { x: 0, y: 1, z: 0 };
     this.groundHeight = 0;
     this.slopeAngle = 0;
+
+    // Hysteresis counters
+    this.groundedFrameCounter = 0;
+    this.airborneFrameCounter = 0;
 
     // Input state
     this.inputDirection = { x: 0, y: 0 };
@@ -137,19 +151,40 @@ export class CharacterController {
 
       this.groundHeight = movementResult.groundHeight;
       this.groundNormal = movementResult.groundNormal;
-      const computedGrounded = movementResult.grounded;
-      this.isGrounded = computedGrounded;
       this.updateSlopeAngle();
 
-      if (!computedGrounded) {
-        const distanceToGround = this.position.y - this.groundHeight;
-        const withinSnap =
-          Math.abs(distanceToGround) <= this.config.SNAP_DISTANCE &&
-          this.velocity.y < 5 &&
-          this.slopeAngle <= this.config.SLOPE_LIMIT;
-        const belowGround = distanceToGround < 0 && this.slopeAngle <= this.config.SLOPE_LIMIT;
-        if (withinSnap || belowGround) {
+      // Use hysteresis for physics-based grounding as well
+      const wasGrounded = this.isGrounded;
+      const distanceToGround = this.position.y - this.groundHeight;
+
+      // Different thresholds for leaving vs landing
+      const leaveThreshold = CharacterController.LEAVE_GROUND_THRESHOLD;
+      const landThreshold = CharacterController.LAND_THRESHOLD;
+      const threshold = wasGrounded ? leaveThreshold : landThreshold;
+
+      const rawGrounded = movementResult.grounded ||
+        (Math.abs(distanceToGround) <= threshold &&
+         this.velocity.y < 5 &&
+         this.slopeAngle <= this.config.SLOPE_LIMIT);
+      const belowGround = distanceToGround < 0 && this.slopeAngle <= this.config.SLOPE_LIMIT;
+
+      if (rawGrounded || belowGround) {
+        this.groundedFrameCounter++;
+        this.airborneFrameCounter = 0;
+
+        if (!wasGrounded && this.groundedFrameCounter >= CharacterController.GROUNDED_DEBOUNCE_FRAMES) {
           this.isGrounded = true;
+        } else if (wasGrounded) {
+          this.isGrounded = true; // Stay grounded
+        }
+      } else {
+        this.airborneFrameCounter++;
+        this.groundedFrameCounter = 0;
+
+        if (wasGrounded && this.airborneFrameCounter >= CharacterController.AIRBORNE_DEBOUNCE_FRAMES) {
+          this.isGrounded = false;
+        } else if (!wasGrounded) {
+          this.isGrounded = false; // Stay airborne
         }
       }
 
@@ -194,21 +229,43 @@ export class CharacterController {
     const distanceToGround = this.position.y - this.groundHeight;
     const wasGrounded = this.isGrounded;
 
-    // Ground check: close to or below ground, not jumping upward, slope is walkable
-    // Math.abs handles being below ground (negative distance)
-    this.isGrounded =
-      Math.abs(distanceToGround) <= this.config.SNAP_DISTANCE &&
-      this.velocity.y < 5 && // Allow grounding when falling or barely moving up
+    // Use different thresholds for leaving vs landing (asymmetric hysteresis)
+    const leaveThreshold = CharacterController.LEAVE_GROUND_THRESHOLD;
+    const landThreshold = CharacterController.LAND_THRESHOLD;
+
+    // Determine raw ground state before debounce
+    // Use appropriate threshold based on current state
+    const threshold = wasGrounded ? leaveThreshold : landThreshold;
+    const rawGrounded =
+      Math.abs(distanceToGround) <= threshold &&
+      this.velocity.y < 5 &&
       this.slopeAngle <= this.config.SLOPE_LIMIT;
 
     // Also ground if clearly below ground level
-    if (distanceToGround < 0 && this.slopeAngle <= this.config.SLOPE_LIMIT) {
-      this.isGrounded = true;
-    }
+    const belowGround = distanceToGround < 0 && this.slopeAngle <= this.config.SLOPE_LIMIT;
 
-    if (!wasGrounded && this.isGrounded && this.movementMode !== MovementMode.GROUNDED) {
-      this.movementMode = MovementMode.LANDING;
-      this.landingTimer = this.config.LANDING_DURATION;
+    if (rawGrounded || belowGround) {
+      // Increment grounded counter, reset airborne
+      this.groundedFrameCounter++;
+      this.airborneFrameCounter = 0;
+
+      // Only become grounded after N consecutive frames
+      if (!wasGrounded && this.groundedFrameCounter >= CharacterController.GROUNDED_DEBOUNCE_FRAMES) {
+        this.isGrounded = true;
+        if (this.movementMode !== MovementMode.GROUNDED) {
+          this.movementMode = MovementMode.LANDING;
+          this.landingTimer = this.config.LANDING_DURATION;
+        }
+      }
+    } else {
+      // Increment airborne counter, reset grounded
+      this.airborneFrameCounter++;
+      this.groundedFrameCounter = 0;
+
+      // Only become airborne after N consecutive frames
+      if (wasGrounded && this.airborneFrameCounter >= CharacterController.AIRBORNE_DEBOUNCE_FRAMES) {
+        this.isGrounded = false;
+      }
     }
   }
 
@@ -396,6 +453,29 @@ export class CharacterController {
    */
   getSpeed(): number {
     return horizontalSpeed(this.velocity);
+  }
+
+  /**
+   * Get debug state for monitoring grounding hysteresis
+   */
+  getDebugState(): {
+    isGrounded: boolean;
+    movementMode: MovementModeType;
+    distanceToGround: number;
+    slopeAngle: number;
+    verticalVelocity: number;
+    groundedFrames: number;
+    airborneFrames: number;
+  } {
+    return {
+      isGrounded: this.isGrounded,
+      movementMode: this.movementMode,
+      distanceToGround: this.position.y - this.groundHeight,
+      slopeAngle: this.slopeAngle,
+      verticalVelocity: this.velocity.y,
+      groundedFrames: this.groundedFrameCounter,
+      airborneFrames: this.airborneFrameCounter
+    };
   }
 
   private getCharacterShape(): CharacterShapeDefinition {
